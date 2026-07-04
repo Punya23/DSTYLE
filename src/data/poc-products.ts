@@ -1,0 +1,92 @@
+import type { Product } from "@/types";
+import { getPocProductImages } from "@/data/demo-assets";
+
+const POC_DEFS = [
+  {
+    id: "poc-1",
+    name: "Tassel-Work Lehenga",
+    slug: "tassel-work-lehenga",
+    description: "Hand-embroidered gold bridal lehenga with scalloped dupatta border and Kundan detailing.",
+    material: "Silk, Organza, Zardozi",
+    careInstr: "Dry clean only. Store in muslin bag.",
+    basePrice: 85000,
+    tags: ["new"],
+    collection: { id: "c1", name: "Bridal", slug: "bridal" },
+    skus: [
+      { id: "s1", size: "S", color: "Gold", skuCode: "DS-001-S", stock: 3, price: 85000 },
+      { id: "s2", size: "M", color: "Gold", skuCode: "DS-001-M", stock: 2, price: 85000 },
+    ],
+  },
+  {
+    id: "poc-2",
+    name: "Mirror-Work Lehenga",
+    slug: "auspicious-hue-lehenga",
+    description: "Peacock teal lehenga with mirror-work choli and crushed silk skirt.",
+    material: "Silk, Mirror work",
+    careInstr: "Dry clean only.",
+    basePrice: 92000,
+    tags: ["new"],
+    collection: { id: "c2", name: "Festive", slug: "festive" },
+    skus: [
+      { id: "s3", size: "S", color: "Teal", skuCode: "DS-002-S", stock: 4, price: 92000 },
+      { id: "s4", size: "M", color: "Teal", skuCode: "DS-002-M", stock: 1, price: 92000 },
+    ],
+  },
+  {
+    id: "poc-3",
+    name: "Gold Potli Lehenga",
+    slug: "ivory-zardozi-saree",
+    description: "Gold embellished lehenga with maroon dupatta and potli — perfect for sangeet.",
+    material: "Silk, Sequin work",
+    careInstr: null,
+    basePrice: 45000,
+    tags: [],
+    collection: { id: "c1", name: "Bridal", slug: "bridal" },
+    skus: [{ id: "s5", size: "Free", color: "Gold", skuCode: "DS-003-F", stock: 5, price: 45000 }],
+  },
+  {
+    id: "poc-4",
+    name: "Rose Gold Anarkali",
+    slug: "emerald-anarkali",
+    description: "Shimmering rose-gold anarkali with silver embroidery and mirror-work cuffs.",
+    material: "Georgette, Silk",
+    careInstr: null,
+    basePrice: 38000,
+    tags: ["new"],
+    collection: { id: "c3", name: "Cocktail", slug: "cocktail" },
+    skus: [{ id: "s6", size: "M", color: "Rose Gold", skuCode: "DS-004-M", stock: 6, price: 38000 }],
+  },
+  {
+    id: "poc-5",
+    name: "Plum Tassel Set",
+    slug: "sand-organza-dupatta",
+    description: "Deep plum satin set with gold tassel hem and grid-embroidered panel.",
+    material: "Satin, Gold thread",
+    careInstr: null,
+    basePrice: 12000,
+    tags: [],
+    collection: { id: "c4", name: "Pret", slug: "pret" },
+    skus: [{ id: "s7", size: "Free", color: "Plum", skuCode: "DS-005-F", stock: 10, price: 12000 }],
+  },
+  {
+    id: "poc-6",
+    name: "Rose Gold Sharara",
+    slug: "rose-gold-sharara",
+    description: "Contemporary rose-gold sharara set with sequin dupatta border.",
+    material: "Chiffon, Silk",
+    careInstr: null,
+    basePrice: 52000,
+    tags: [],
+    collection: { id: "c2", name: "Festive", slug: "festive" },
+    skus: [{ id: "s8", size: "S", color: "Rose Gold", skuCode: "DS-006-S", stock: 2, price: 52000 }],
+  },
+];
+
+/** Demo catalogue for POC when the database is empty */
+export const POC_PRODUCTS: Product[] = POC_DEFS.map((p) => ({
+  ...p,
+  isVisible: true,
+  isFeatured: true,
+  careInstr: p.careInstr ?? null,
+  images: getPocProductImages(p.slug, p.name),
+}));
