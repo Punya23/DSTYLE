@@ -1,9 +1,28 @@
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
-export const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
+// Lazily instantiated so the constructor doesn't run at build time (when env
+// vars are absent), only at request time in the runtime environment.
+let _razorpay: Razorpay | null = null;
+
+export function getRazorpay(): Razorpay {
+  if (!_razorpay) {
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      throw new Error("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set");
+    }
+    _razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+  }
+  return _razorpay;
+}
+
+/** @deprecated Use getRazorpay() instead */
+export const razorpay = new Proxy({} as Razorpay, {
+  get(_target, prop) {
+    return (getRazorpay() as unknown as Record<string | symbol, unknown>)[prop];
+  },
 });
 
 /**
