@@ -106,6 +106,7 @@ export function HeroSection({
   return (
     <section
       ref={heroRef}
+      data-site-hero
       className="relative h-[100dvh] min-h-[560px] md:min-h-[680px] flex items-center justify-center overflow-hidden bg-brand-ink"
     >
       {/* Media layer (video / gradient fallback) */}

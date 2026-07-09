@@ -144,7 +144,8 @@ export function InventoryTable({ initialSkus }: InventoryTableProps) {
                       <button
                         onClick={() => handleSave(sku.id)}
                         disabled={saving === sku.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-ink text-white text-[10px] font-sans tracking-luxe uppercase hover:bg-brand-gold-deep transition-colors disabled:opacity-50"
+                        style={{ backgroundColor: "var(--color-brand-ink)", color: "#ffffff" }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-sans tracking-luxe uppercase transition-[filter,opacity] hover:brightness-125 disabled:opacity-50"
                       >
                         {saved[sku.id] ? (
                           <Check size={11} />

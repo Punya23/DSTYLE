@@ -44,3 +44,4 @@ next-env.d.ts
 
 # raw unprocessed source media (not referenced by the app — curated copies live in /public)
 /assets
+/dstyle_shoots

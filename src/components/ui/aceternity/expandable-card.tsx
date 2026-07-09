@@ -24,6 +24,7 @@ export type ExpandableCardItem = {
  */
 export function ExpandableCards({ cards }: { cards: ExpandableCardItem[] }) {
   const [active, setActive] = useState<ExpandableCardItem | null>(null);
+  const [ctaHovered, setCtaHovered] = useState(false);
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -109,7 +110,13 @@ export function ExpandableCards({ cards }: { cards: ExpandableCardItem[] }) {
                       <Link
                         href={active.ctaLink}
                         onClick={() => setActive(null)}
-                        className="shrink-0 inline-block whitespace-nowrap bg-brand-ink px-5 py-3 text-[10px] font-sans font-semibold tracking-luxe uppercase text-white transition-colors hover:bg-brand-gold-deep"
+                        onMouseEnter={() => setCtaHovered(true)}
+                        onMouseLeave={() => setCtaHovered(false)}
+                        style={{
+                          backgroundColor: ctaHovered ? "var(--color-brand-gold-deep)" : "var(--color-brand-ink)",
+                          color: "#ffffff",
+                        }}
+                        className="shrink-0 inline-block whitespace-nowrap px-5 py-3 text-[10px] font-sans font-semibold tracking-luxe uppercase transition-colors duration-300"
                       >
                         {active.ctaText}
                       </Link>

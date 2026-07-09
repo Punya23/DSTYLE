@@ -33,7 +33,7 @@ export function CollectionsStrip() {
                     <CardItem translateZ={30} className="absolute inset-0 w-full h-full">
                       <Link
                         href={`/collections?collection=${collection.slug}`}
-                        className="block w-full h-full overflow-hidden bg-brand-ivory-deep rounded-[4px] transition-transform duration-150 active:scale-[0.98]"
+                        className="relative block w-full h-full overflow-hidden bg-brand-ivory-deep rounded-[4px] transition-transform duration-150 active:scale-[0.98]"
                       >
                         {banner ? (
                           <Image

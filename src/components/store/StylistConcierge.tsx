@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
@@ -53,7 +54,26 @@ export function StylistConcierge() {
   const [showChips, setShowChips] = useState(true);
   const [nudge, setNudge] = useState(false);
   const [voiceHint, setVoiceHint] = useState(false);
+  const [overHero, setOverHero] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const isProductPage = pathname?.startsWith("/products/") ?? false;
+
+  // Hide the floating trigger while the page's hero (if any) is in view — it
+  // competes with the hero's own CTAs. Re-checks on every route change since
+  // only the homepage has a [data-site-hero] element.
+  useEffect(() => {
+    const heroEl = document.querySelector("[data-site-hero]");
+    if (!heroEl) {
+      setOverHero(false);
+      return;
+    }
+    const io = new IntersectionObserver(([entry]) => setOverHero(entry.isIntersecting), {
+      threshold: 0.15,
+    });
+    io.observe(heroEl);
+    return () => io.disconnect();
+  }, [pathname]);
 
   // Fetch catalogue lazily
   useEffect(() => {
@@ -205,37 +225,56 @@ export function StylistConcierge() {
 
   return (
     <>
-      {/* Floating trigger + first-visit nudge */}
-      {/* Lifted clear of the mobile "Select Size" bar on product pages (md:hidden there too) */}
-      <div className="fixed bottom-24 md:bottom-5 right-4 sm:right-5 z-[64] flex flex-col items-end gap-3">
-        <AnimatePresence>
-          {nudge && !stylistOpen && (
-            <motion.button
-              initial={{ opacity: 0, y: 8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              onClick={handleOpen}
-              className="max-w-[230px] text-left bg-brand-ink text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.5)]"
-            >
-              <span className="block text-[10px] tracking-luxe uppercase text-brand-champagne mb-1">Your stylist</span>
-              <span className="block text-[13px] leading-snug font-sans">What are you exploring today? Let me guide you ✨</span>
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {!stylistOpen && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleOpen}
-            aria-label="Open the Dstyle stylist"
-            style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
-            className="grid place-items-center h-14 w-14 rounded-full shadow-[0_14px_40px_-6px_rgba(23,19,15,0.55)] ring-2 ring-brand-gold-deep/40"
+      {/* Floating trigger + first-visit nudge — hidden while the page's hero is
+          in view; sits in the natural bottom-right corner everywhere, and only
+          lifts clear of the mobile "Select Size" bar on product pages. */}
+      <AnimatePresence>
+        {!overHero && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.25 }}
+            className={cn(
+              "fixed right-4 sm:right-5 z-[64] flex flex-col items-end gap-2.5",
+              isProductPage ? "bottom-24 md:bottom-5" : "bottom-5"
+            )}
           >
-            <Sparkles size={20} strokeWidth={1.5} />
-          </motion.button>
+            <AnimatePresence>
+              {nudge && !stylistOpen && (
+                <motion.button
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  onClick={handleOpen}
+                  style={{ backgroundColor: "var(--color-brand-ink)" }}
+                  className="max-w-[230px] text-left text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-[0_14px_34px_-14px_rgba(0,0,0,0.6)]"
+                >
+                  <span className="block text-[10px] tracking-luxe uppercase text-brand-champagne mb-1">
+                    Your stylist
+                  </span>
+                  <span className="block text-[13px] leading-snug font-sans">
+                    What are you exploring today? Let me guide you ✨
+                  </span>
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {!stylistOpen && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleOpen}
+                aria-label="Open the Dstyle stylist"
+                style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
+                className="grid place-items-center h-14 w-14 rounded-full shadow-[0_8px_22px_-6px_rgba(23,19,15,0.5)] border border-brand-ink/10"
+              >
+                <Sparkles size={22} strokeWidth={1.5} />
+              </motion.button>
+            )}
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
       {/* Concierge panel */}
       <AnimatePresence>
@@ -297,7 +336,8 @@ export function StylistConcierge() {
                           <Link
                             href={m.collection ? `/collections?collection=${m.collection}` : "/collections"}
                             onClick={closeStylist}
-                            className="inline-flex items-center gap-2 bg-brand-ink text-white px-4 py-2.5 text-[10px] font-sans font-semibold tracking-luxe uppercase hover:bg-brand-gold-deep transition-colors"
+                            style={{ backgroundColor: "var(--color-brand-ink)", color: "#ffffff" }}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 text-[10px] font-sans font-semibold tracking-luxe uppercase transition-[filter] hover:brightness-125"
                           >
                             View the {m.collection ? COLLECTION_LABEL[m.collection] : "Full"} Edit
                             <ArrowRight size={13} />
@@ -398,7 +438,8 @@ export function StylistConcierge() {
                   <button
                     onClick={submitText}
                     aria-label="Send"
-                    className="grid place-items-center h-11 w-11 shrink-0 rounded-full bg-brand-ink text-brand-champagne hover:bg-brand-gold-deep hover:text-white transition-colors"
+                    style={{ backgroundColor: "var(--color-brand-ink)", color: "var(--color-brand-champagne)" }}
+                    className="grid place-items-center h-11 w-11 shrink-0 rounded-full transition-[filter] hover:brightness-125"
                   >
                     <Send size={16} />
                   </button>

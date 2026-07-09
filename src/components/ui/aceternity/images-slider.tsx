@@ -88,7 +88,6 @@ export function ImagesSlider({
               priority={priority && i === 0}
               className="object-cover object-center"
               sizes="100vw"
-              quality={82}
             />
           </motion.div>
         ))}
