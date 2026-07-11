@@ -1,0 +1,4 @@
+# Admin-uploaded product photos land here when Cloudinary is not configured.
+# These are served statically by Next and can be committed so they deploy like
+# the curated images in public/products/. Once Cloudinary keys are set, uploads
+# go to Cloudinary instead and nothing new is written here.
