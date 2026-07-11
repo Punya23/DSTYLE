@@ -11,6 +11,7 @@ const FOOTER_NAV = {
     { label: "Cocktail", href: "/collections?collection=cocktail" },
     { label: "Pret", href: "/collections?collection=pret" },
     { label: "New Arrivals", href: "/collections?tags=new" },
+    { label: "Style Quiz", href: "/style-quiz" },
   ],
   "Customer Care": [
     { label: "Contact", href: "/about" },

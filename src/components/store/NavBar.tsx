@@ -26,6 +26,7 @@ const NAV_LINKS = [
     ],
   },
   { label: "New Arrivals", href: "/collections?tags=new" },
+  { label: "Style Quiz", href: "/style-quiz" },
   { label: "About", href: "/about" },
 ];
 
@@ -39,6 +40,7 @@ const MOBILE_COLLECTIONS = [
 const MOBILE_LINKS = [
   { label: "New Arrivals", href: "/collections?tags=new" },
   { label: "All Collections", href: "/collections" },
+  { label: "Style Quiz", href: "/style-quiz" },
   { label: "About the House", href: "/about" },
 ];
 
