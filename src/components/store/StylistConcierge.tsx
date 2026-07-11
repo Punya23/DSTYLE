@@ -97,8 +97,14 @@ export function StylistConcierge() {
     }
   }, [stylistOpen, messages.length, stylistSeed]);
 
+  const scrollToBottom = (smooth = true) =>
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    scrollToBottom();
   }, [messages, typing]);
 
   const dismissNudge = () => {
@@ -363,7 +369,11 @@ export function StylistConcierge() {
                             : "max-w-[85%] bg-white text-brand-ink-soft rounded-2xl rounded-bl-sm px-4 py-3 text-[13px] leading-relaxed border border-brand-ivory-deep"
                         }
                       >
-                        {m.text}
+                        {m.role === "user" ? (
+                          m.text
+                        ) : (
+                          <TypewriterText text={m.text} onReveal={() => scrollToBottom(false)} />
+                        )}
                       </div>
                     </motion.div>
                   );
@@ -451,4 +461,34 @@ export function StylistConcierge() {
       </AnimatePresence>
     </>
   );
+}
+
+/**
+ * Reveals the stylist's reply progressively, like a live assistant typing —
+ * gives the concierge an LLM feel instead of text snapping in all at once.
+ * Runs purely on the client; the underlying message text never changes, so it
+ * types once per bot bubble and stays put.
+ */
+function TypewriterText({ text, onReveal }: { text: string; onReveal?: () => void }) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    setCount(0);
+    if (!text) return;
+    // Reveal ~2 chars per frame → a ~120-char reply finishes in under a second.
+    const id = window.setInterval(() => {
+      setCount((n) => {
+        const next = Math.min(n + 2, text.length);
+        if (next >= text.length) window.clearInterval(id);
+        return next;
+      });
+      onReveal?.();
+    }, 16);
+    return () => window.clearInterval(id);
+    // Re-run only when the text itself changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+
+  // Zero-width space keeps the bubble height stable before the first character.
+  return <>{text.slice(0, count) || "​"}</>;
 }
