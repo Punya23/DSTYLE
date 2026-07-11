@@ -53,7 +53,7 @@ export function AdminInsights() {
             <h2 className="text-[11px] font-sans font-semibold tracking-luxe uppercase">AI Insights</h2>
             <p className="text-[10px] font-sans text-brand-champagne/70 mt-0.5">
               {data?.source === "ai"
-                ? "Written by Claude from your live data"
+                ? "AI-written from your live data"
                 : data?.source === "rules"
                   ? "Auto-generated from your live data"
                   : "Reading your store…"}

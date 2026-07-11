@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { groqConfigured, groqJSON } from "@/lib/groq";
 import type { OrderStatus } from "@/types";
 
 /**
@@ -9,7 +9,7 @@ import type { OrderStatus } from "@/types";
  *
  * Gathers the store's live metrics and turns them into a short, owner-facing
  * brief: a headline, a few tagged insights (good / watch / action), and concrete
- * recommendations. Claude writes it when ANTHROPIC_API_KEY is set; otherwise a
+ * recommendations. Groq writes it when GROQ_API_KEY is set; otherwise a
  * rule-based brief is generated from the exact same metrics — so the dashboard is
  * genuinely useful with or without a key, pre-launch or live.
  */
@@ -17,49 +17,11 @@ import type { OrderStatus } from "@/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const INSIGHTS_MODEL =
-  process.env.INSIGHTS_MODEL || process.env.STYLIST_MODEL || "claude-haiku-4-5-20251001";
-
 const PAID: OrderStatus[] = ["CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"];
 
 type Tone = "good" | "watch" | "action";
 type Insight = { title: string; detail: string; tone: Tone };
 type Brief = { headline: string; insights: Insight[]; recommendations: string[] };
-
-const OUTPUT_SCHEMA = {
-  type: "object",
-  properties: {
-    headline: {
-      type: "string",
-      description: "One punchy, specific sentence summarising the store's current state. No fluff.",
-    },
-    insights: {
-      type: "array",
-      description: "3–5 insights, each tied to a real number from the data.",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string", description: "A short label, ≤6 words." },
-          detail: { type: "string", description: "One sentence explaining it, referencing the figure." },
-          tone: {
-            type: "string",
-            enum: ["good", "watch", "action"],
-            description: "good = healthy, watch = keep an eye on, action = do something now.",
-          },
-        },
-        required: ["title", "detail", "tone"],
-        additionalProperties: false,
-      },
-    },
-    recommendations: {
-      type: "array",
-      description: "2–4 concrete next steps for the owner, most impactful first.",
-      items: { type: "string" },
-    },
-  },
-  required: ["headline", "insights", "recommendations"],
-  additionalProperties: false,
-};
 
 const DAYS = 14;
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -145,8 +107,8 @@ async function gatherMetrics() {
     priceRange: prices.length
       ? { min: Math.min(...prices), max: Math.max(...prices) }
       : { min: 0, max: 0 },
-    lowStock,
-    outOfStock,
+    lowStockVariants: lowStock,
+    outOfStockVariants: outOfStock,
     totalOrders,
     paidOrders,
     pendingOrders: pendingCount,
@@ -214,18 +176,18 @@ function ruleBasedBrief(m: Metrics): Brief {
     }
   }
 
-  if (m.outOfStock > 0) {
+  if (m.outOfStockVariants > 0) {
     insights.push({
       title: "Out of stock",
-      detail: `${m.outOfStock} variant(s) are at zero stock and can't be bought.`,
+      detail: `${m.outOfStockVariants} variant(s) are at zero stock and can't be bought.`,
       tone: "action",
     });
     recommendations.push("Restock or hide the out-of-stock variants so shoppers don't hit dead ends.");
   }
-  if (m.lowStock > 0) {
+  if (m.lowStockVariants > 0) {
     insights.push({
       title: "Low stock",
-      detail: `${m.lowStock} variant(s) have 5 or fewer left.`,
+      detail: `${m.lowStockVariants} variant(s) have 5 or fewer left.`,
       tone: "watch",
     });
   }
@@ -251,43 +213,38 @@ function ruleBasedBrief(m: Metrics): Brief {
 }
 
 async function aiBrief(m: Metrics): Promise<Brief | null> {
-  try {
-    const client = new Anthropic();
-    const response = await client.messages.create({
-      model: INSIGHTS_MODEL,
-      max_tokens: 900,
-      output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
-      system: [
-        {
-          type: "text",
-          text: `You are the business analyst for Dstyle, a luxury Indian couture house. You read the store's metrics and brief the owner like a sharp, calm advisor: specific, tied to the numbers, no filler, no hype. Amounts are in Indian rupees. If there are no orders yet, treat it as pre-launch and focus on catalogue readiness, stock, collection balance, and launch steps. Every insight must reference an actual figure from the data. Keep it scannable.`,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: `Here are the current store metrics as JSON. Write the brief.\n\n${JSON.stringify(m, null, 2)}`,
-        },
-      ],
-    });
+  const system = `You are the business analyst for Dstyle, a luxury Indian couture house. You read the store's metrics and brief the owner like a sharp, calm advisor: specific, tied to the numbers, no filler, no hype. Amounts are in Indian rupees. If there are no orders yet, treat it as pre-launch and focus on catalogue readiness, stock, collection balance, and launch steps. Every insight must reference an actual figure from the data. Keep it scannable.
 
-    if (response.stop_reason === "refusal") return null;
-    const block = response.content.find((b) => b.type === "text");
-    if (!block || block.type !== "text") return null;
-    const parsed = JSON.parse(block.text) as Brief;
-    if (!parsed?.headline || !Array.isArray(parsed.insights)) return null;
-    // Clamp tones to the allowed set defensively.
-    parsed.insights = parsed.insights
-      .filter((i) => i && i.title && i.detail)
-      .map((i) => ({ ...i, tone: (["good", "watch", "action"] as Tone[]).includes(i.tone) ? i.tone : "watch" }))
-      .slice(0, 6);
-    parsed.recommendations = (parsed.recommendations ?? []).filter(Boolean).slice(0, 4);
-    return parsed;
-  } catch (err) {
-    console.error("[insights] AI error:", err);
-    return null;
-  }
+Respond ONLY with a JSON object of exactly this shape, nothing else:
+{
+  "headline": string,                                  // one punchy, specific sentence
+  "insights": [                                        // 3–5 items, each tied to a real figure
+    { "title": string, "detail": string, "tone": "good" | "watch" | "action" }
+  ],
+  "recommendations": string[]                          // 2–4 concrete next steps, most impactful first
+}
+tone: good = healthy, watch = keep an eye on, action = do something now.`;
+
+  const parsed = await groqJSON<Brief>({
+    messages: [
+      { role: "system", content: system },
+      {
+        role: "user",
+        content: `Here are the current store metrics as JSON. Write the brief.\n\n${JSON.stringify(m, null, 2)}`,
+      },
+    ],
+    temperature: 0.4,
+    maxTokens: 900,
+  });
+
+  if (!parsed?.headline || !Array.isArray(parsed.insights)) return null;
+  // Clamp tones to the allowed set defensively.
+  parsed.insights = parsed.insights
+    .filter((i) => i && i.title && i.detail)
+    .map((i) => ({ ...i, tone: (["good", "watch", "action"] as Tone[]).includes(i.tone) ? i.tone : "watch" }))
+    .slice(0, 6);
+  parsed.recommendations = (parsed.recommendations ?? []).filter(Boolean).slice(0, 4);
+  return parsed;
 }
 
 export async function GET() {
@@ -298,11 +255,10 @@ export async function GET() {
 
   try {
     const metrics = await gatherMetrics();
-    const hasKey = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
 
     let brief: Brief | null = null;
     let source: "ai" | "rules" = "rules";
-    if (hasKey) {
+    if (groqConfigured()) {
       brief = await aiBrief(metrics);
       if (brief) source = "ai";
     }
