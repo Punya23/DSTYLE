@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/utils";
 import { RevenueAreaChart, HorizontalBars } from "@/components/admin/AdminCharts";
+import { AdminInsights } from "@/components/admin/AdminInsights";
 import type { OrderStatus } from "@/types";
 
 const PAID: OrderStatus[] = ["CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"];
@@ -120,6 +121,9 @@ export default async function AdminDashboard() {
         <p className="text-[10px] font-sans tracking-luxe uppercase text-brand-gold mb-1">Overview</p>
         <h1 className="font-display italic text-3xl lg:text-4xl text-brand-ink">Dashboard</h1>
       </div>
+
+      {/* AI insights — reads the live metrics and briefs the owner */}
+      <AdminInsights />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
