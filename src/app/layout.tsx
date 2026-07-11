@@ -26,6 +26,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   title: {
     default: "Dstyle — Indian Couture",
     template: "%s | Dstyle",
@@ -37,7 +38,17 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_IN",
     siteName: "Dstyle",
+    title: "Dstyle — Indian Couture",
+    description:
+      "Hand-embroidered bridal, festive, cocktail and pret couture — crafted in our Mumbai atelier.",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Dstyle — Indian Couture",
+    description:
+      "Hand-embroidered bridal, festive, cocktail and pret couture — crafted in our Mumbai atelier.",
+  },
+  alternates: { canonical: "/" },
 };
 
 export const viewport: Viewport = {
