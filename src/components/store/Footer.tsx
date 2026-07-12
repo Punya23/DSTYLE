@@ -81,7 +81,8 @@ export function Footer() {
                 <MagneticButton className="shrink-0 mt-3 sm:mt-0">
                   <button
                     type="submit"
-                    className="bg-brand-champagne text-brand-ink px-8 py-4 w-full text-[10px] font-sans font-semibold tracking-luxe uppercase transition-colors duration-300 hover:bg-white"
+                    style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
+                    className="px-8 py-4 w-full text-[10px] font-sans font-semibold tracking-luxe uppercase transition-[filter] duration-300 hover:brightness-105"
                   >
                     Subscribe
                   </button>

@@ -1,3 +1,9 @@
+/* Declare the cascade-layer order up front. Next splits Tailwind's output across
+   CSS chunks, and without this the layers get ordered by first-appearance —
+   which lets Preflight's `button { background: transparent }` (base) override
+   `.bg-*` utilities, silently stripping the background off every <button>. */
+@layer theme, base, components, utilities;
+
 @import "tailwindcss";
 
 @theme {

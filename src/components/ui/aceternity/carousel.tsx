@@ -116,7 +116,10 @@ const Slide = ({ slide, index, current, handleSlideClick }: SlideProps) => {
             {title}
           </h2>
           <div className="flex justify-center">
-            <button className="mt-7 px-7 h-11 w-fit mx-auto text-brand-ink bg-brand-champagne text-[10px] font-sans font-semibold tracking-luxe uppercase flex justify-center items-center hover:bg-white transition duration-300">
+            <button
+              style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
+              className="mt-7 px-7 h-11 w-fit mx-auto text-[10px] font-sans font-semibold tracking-luxe uppercase flex justify-center items-center transition-[filter] duration-300 hover:brightness-105"
+            >
               {button}
             </button>
           </div>

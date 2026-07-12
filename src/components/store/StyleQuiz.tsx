@@ -116,6 +116,7 @@ export function StyleQuiz() {
   const [result, setResult] = useState<Collection | null>(null);
   const [picks, setPicks] = useState<Product[]>([]);
   const [loadingPicks, setLoadingPicks] = useState(false);
+  const [refineHover, setRefineHover] = useState(false);
 
   const total = QUESTIONS.length;
 
@@ -289,7 +290,14 @@ export function StyleQuiz() {
               </Link>
               <button
                 onClick={() => openStylistWith(stylistSeed())}
-                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 text-[11px] font-sans font-semibold tracking-luxe uppercase border border-brand-ink text-brand-ink transition-colors hover:bg-brand-ink hover:text-white"
+                onMouseEnter={() => setRefineHover(true)}
+                onMouseLeave={() => setRefineHover(false)}
+                style={{
+                  border: "1px solid var(--color-brand-ink)",
+                  backgroundColor: refineHover ? "var(--color-brand-ink)" : "transparent",
+                  color: refineHover ? "#ffffff" : "var(--color-brand-ink)",
+                }}
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 text-[11px] font-sans font-semibold tracking-luxe uppercase transition-colors"
               >
                 <Sparkles size={14} />
                 Refine with the Stylist
