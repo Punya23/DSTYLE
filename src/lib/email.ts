@@ -1,8 +1,5 @@
-import { Resend } from "resend";
+import { getResendClient, FROM_EMAIL } from "@/lib/resend";
 import { formatPrice } from "@/lib/utils";
-
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM = process.env.FROM_EMAIL || "Dstyle <orders@dstyle.in>";
 
 export interface OrderEmailItem {
   name: string;
@@ -25,6 +22,7 @@ export interface OrderEmailPayload {
  * configured (logs a warning) so local dev without a key still works.
  */
 export async function sendOrderConfirmationEmail(payload: OrderEmailPayload): Promise<void> {
+  const resend = getResendClient();
   if (!resend) {
     console.warn("[email] RESEND_API_KEY not set — skipping confirmation email");
     return;
@@ -68,7 +66,7 @@ export async function sendOrderConfirmationEmail(payload: OrderEmailPayload): Pr
 
   try {
     await resend.emails.send({
-      from: FROM,
+      from: FROM_EMAIL,
       to: payload.to,
       subject: `Your Dstyle order #${payload.orderId.slice(-8).toUpperCase()} is confirmed`,
       html,
