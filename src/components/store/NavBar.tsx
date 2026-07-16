@@ -11,7 +11,15 @@ import { useCartStore } from "@/store/cart";
 import { useAuthModal } from "@/store/auth-modal";
 import { useUIStore } from "@/store/ui";
 import { COLLECTION_BANNERS } from "@/data/demo-assets";
+import { MagneticButton } from "@/components/ui/aceternity/magnetic-button";
 import { cn } from "@/lib/utils";
+
+const COLLECTION_TAGLINES: Record<string, string> = {
+  bridal: "For the forever moment",
+  festive: "Celebrate in colour",
+  cocktail: "Evening glamour",
+  pret: "Everyday luxury",
+};
 
 const NAV_LINKS = [
   {
@@ -126,25 +134,58 @@ export function NavBar() {
                     <AnimatePresence>
                       {activeMenu === link.label && (
                         <motion.div
-                          initial={{ opacity: 0, y: 6 }}
+                          initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 6 }}
-                          transition={{ duration: 0.2 }}
+                          exit={{ opacity: 0, y: 8 }}
+                          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                           onMouseEnter={() => handleMenuEnter(link.label)}
                           onMouseLeave={handleMenuLeave}
-                          className="absolute top-full left-0 pt-3 min-w-[190px]"
+                          className="absolute top-full left-0 pt-4"
                         >
-                          <div className="bg-brand-ivory border border-brand-ivory-deep py-3 shadow-[0_20px_60px_rgba(0,0,0,0.1)]">
-                            {link.submenu.map((item) => (
-                              <Link
-                                key={item.label}
-                                href={item.href}
-                                onClick={() => setActiveMenu(null)}
-                                className="block px-5 py-2.5 text-[11px] font-sans tracking-[0.2em] uppercase text-black/80 hover:text-brand-gold hover:bg-white transition-colors"
+                          <div className="bg-brand-ivory border border-brand-ivory-deep p-5 shadow-[0_30px_80px_-20px_rgba(23,19,15,0.25)] flex gap-2">
+                            {MOBILE_COLLECTIONS.map((c, i) => (
+                              <motion.div
+                                key={c.slug}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.04, duration: 0.3 }}
                               >
-                                {item.label}
-                              </Link>
+                                <Link
+                                  href={`/collections?collection=${c.slug}`}
+                                  onClick={() => setActiveMenu(null)}
+                                  className="group block w-[150px]"
+                                >
+                                  <div className="relative aspect-[3/4] overflow-hidden bg-brand-ivory-deep rounded-[3px]">
+                                    {COLLECTION_BANNERS[c.slug] && (
+                                      <Image
+                                        src={COLLECTION_BANNERS[c.slug]}
+                                        alt={c.label}
+                                        fill
+                                        className="object-cover object-top transition-transform duration-700 group-hover:scale-[1.06]"
+                                        sizes="150px"
+                                      />
+                                    )}
+                                    <span className="absolute inset-0 bg-gradient-to-t from-brand-ink/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                  </div>
+                                  <p className="mt-3 font-display text-base text-black">{c.label}</p>
+                                  <p className="text-[10px] font-sans tracking-wide text-black/40 mt-0.5">
+                                    {COLLECTION_TAGLINES[c.slug]}
+                                  </p>
+                                </Link>
+                              </motion.div>
                             ))}
+                            <Link
+                              href="/collections"
+                              onClick={() => setActiveMenu(null)}
+                              className="group flex flex-col items-center justify-center gap-2 w-[110px] text-center border-l border-brand-ivory-deep pl-4 ml-1"
+                            >
+                              <span className="grid place-items-center h-10 w-10 rounded-full border border-brand-gold/40 text-brand-gold transition-colors group-hover:bg-brand-gold group-hover:text-white">
+                                <ChevronRight size={16} />
+                              </span>
+                              <span className="text-[10px] font-sans tracking-luxe uppercase text-black/60 group-hover:text-brand-gold transition-colors">
+                                View All
+                              </span>
+                            </Link>
                           </div>
                         </motion.div>
                       )}
@@ -167,31 +208,41 @@ export function NavBar() {
             </Link>
 
             <div className="flex items-center gap-4 sm:gap-5">
-              <button className={iconClass} onClick={openSearch} aria-label="Search">
-                <Search size={18} strokeWidth={1.5} />
-              </button>
-              {session?.user ? (
-                <Link href="/account" className={cn("hidden md:block", iconClass)} aria-label="Account">
-                  <User size={18} strokeWidth={1.5} />
-                </Link>
-              ) : (
-                <button onClick={() => openAuth()} className={cn("hidden md:block", iconClass)} aria-label="Sign in">
-                  <User size={18} strokeWidth={1.5} />
+              <MagneticButton strength={0.5} maxDistance={14}>
+                <button className={iconClass} onClick={openSearch} aria-label="Search">
+                  <Search size={18} strokeWidth={1.5} />
                 </button>
-              )}
-              <button className={cn("relative", iconClass)} onClick={openCart} aria-label="Cart">
-                <ShoppingBag size={18} strokeWidth={1.5} />
-                {totalItems() > 0 && (
-                  <span
-                    className={cn(
-                      "absolute -top-1 -right-1.5 h-4 w-4 text-[9px] flex items-center justify-center rounded-full font-sans font-semibold",
-                      overHero ? "bg-brand-champagne text-brand-ink" : "bg-brand-gold text-white"
-                    )}
-                  >
-                    {totalItems()}
-                  </span>
+              </MagneticButton>
+              <MagneticButton strength={0.5} maxDistance={14} className="hidden md:inline-block">
+                {session?.user ? (
+                  <Link href="/account" className={iconClass} aria-label="Account">
+                    <User size={18} strokeWidth={1.5} />
+                  </Link>
+                ) : (
+                  <button onClick={() => openAuth()} className={iconClass} aria-label="Sign in">
+                    <User size={18} strokeWidth={1.5} />
+                  </button>
                 )}
-              </button>
+              </MagneticButton>
+              <MagneticButton strength={0.5} maxDistance={14}>
+                <button className={cn("relative", iconClass)} onClick={openCart} aria-label="Cart">
+                  <ShoppingBag size={18} strokeWidth={1.5} />
+                  {totalItems() > 0 && (
+                    <motion.span
+                      key={totalItems()}
+                      initial={{ scale: 1.4 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                      className={cn(
+                        "absolute -top-1 -right-1.5 h-4 w-4 text-[9px] flex items-center justify-center rounded-full font-sans font-semibold",
+                        overHero ? "bg-brand-champagne text-brand-ink" : "bg-brand-gold text-white"
+                      )}
+                    >
+                      {totalItems()}
+                    </motion.span>
+                  )}
+                </button>
+              </MagneticButton>
             </div>
           </div>
         </div>

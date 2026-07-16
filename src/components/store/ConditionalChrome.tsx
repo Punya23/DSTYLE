@@ -29,7 +29,7 @@ export function ConditionalChrome({
   return (
     <>
       {nav}
-      <main className="relative z-10 bg-brand-ivory w-full min-w-0">
+      <main className="relative z-10 bg-brand-ivory w-full min-w-0 rounded-b-[28px] sm:rounded-b-[40px] shadow-[0_40px_70px_-30px_rgba(23,19,15,0.35)]">
         <PageTransition>{children}</PageTransition>
       </main>
       {footer}
