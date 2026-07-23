@@ -20,7 +20,7 @@ async function getDashboardStats() {
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - (DAYS - 1));
 
-    const [totalProducts, lowStockSkus, recentOrders, statusGroups, paidWindow, orderItems, revenueAgg] =
+    const [totalProducts, lowStockSkus, lowStockCount, recentOrders, statusGroups, paidWindow, orderItems, revenueAgg] =
       await Promise.all([
         prisma.product.count({ where: { isVisible: true } }),
         prisma.sKU.findMany({
@@ -28,6 +28,9 @@ async function getDashboardStats() {
           include: { product: { select: { name: true } } },
           take: 10,
         }),
+        // Full low-stock count — the list above is capped at 10 for the alerts
+        // panel, so the stat card must count separately or it under-reports.
+        prisma.sKU.count({ where: { stock: { gt: 0, lte: 5 } } }),
         prisma.order.findMany({
           orderBy: { createdAt: "desc" },
           take: 6,
@@ -82,6 +85,7 @@ async function getDashboardStats() {
     return {
       totalProducts,
       lowStockSkus,
+      lowStockCount,
       recentOrders,
       revenueByDay: buckets,
       statusData,
@@ -90,10 +94,12 @@ async function getDashboardStats() {
       paidOrders,
       revenue: Number(revenueAgg._sum.totalAmount ?? 0),
     };
-  } catch {
+  } catch (err) {
+    console.error("[admin/dashboard] stats query failed:", err);
     return {
       totalProducts: 0,
       lowStockSkus: [] as Array<{ id: string; skuCode: string; size: string; stock: number; product: { name: string } }>,
+      lowStockCount: 0,
       recentOrders: [] as Array<{ id: string; totalAmount: unknown; status: string; createdAt: Date; user: { name: string | null; email: string | null }; items: unknown[] }>,
       revenueByDay: [] as { label: string; revenue: number }[],
       statusData: [] as { label: string; value: number }[],
@@ -112,7 +118,7 @@ export default async function AdminDashboard() {
     { label: "Total Revenue", value: formatPrice(s.revenue), sub: "Paid orders" },
     { label: "Orders", value: String(s.totalOrders), sub: `${s.paidOrders} paid` },
     { label: "Active Products", value: String(s.totalProducts), sub: "Visible on store" },
-    { label: "Low Stock SKUs", value: String(s.lowStockSkus.length), sub: "Need restocking", alert: s.lowStockSkus.length > 0 },
+    { label: "Low Stock SKUs", value: String(s.lowStockCount), sub: "Need restocking", alert: s.lowStockCount > 0 },
   ];
 
   return (
@@ -183,7 +189,11 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Low stock */}
-      <Panel title="Low Stock Alerts" action={<Link href="/admin/inventory" className="text-[10px] font-sans tracking-luxe uppercase text-brand-gold hover:underline">Manage</Link>}>
+      <Panel
+        title="Low Stock Alerts"
+        sub={s.lowStockCount > s.lowStockSkus.length ? `Showing ${s.lowStockSkus.length} of ${s.lowStockCount}` : undefined}
+        action={<Link href="/admin/inventory" className="text-[10px] font-sans tracking-luxe uppercase text-brand-gold hover:underline">Manage</Link>}
+      >
         {s.lowStockSkus.length === 0 ? (
           <Empty>All stock levels are healthy.</Empty>
         ) : (

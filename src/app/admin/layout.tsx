@@ -31,8 +31,8 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen bg-brand-ivory">
-      {/* Sidebar */}
-      <aside className="w-56 shrink-0 bg-brand-ink text-white flex flex-col sticky top-0 h-screen">
+      {/* Desktop sidebar (md+) */}
+      <aside className="hidden md:flex w-56 shrink-0 bg-brand-ink text-white flex-col sticky top-0 h-screen">
         <div className="px-6 py-7 border-b border-white/10">
           <span className="font-display text-xl tracking-[0.24em] uppercase">Dstyle</span>
           <p className="text-[9px] font-sans tracking-luxe uppercase text-brand-champagne/70 mt-1">
@@ -73,8 +73,50 @@ export default async function AdminLayout({
         </div>
       </aside>
 
-      {/* Content */}
-      <main className="flex-1 overflow-y-auto min-w-0">{children}</main>
+      {/* Content column */}
+      <main className="flex-1 overflow-y-auto min-w-0">
+        {/* Mobile top bar (below md) — the sidebar is hidden there, so the nav
+            lives in a sticky header with a horizontally scrollable tab row. */}
+        <div className="md:hidden sticky top-0 z-20 bg-brand-ink text-white">
+          <div className="flex items-center justify-between px-4 h-14">
+            <div className="flex items-baseline gap-2">
+              <span className="font-display text-lg tracking-[0.22em] uppercase">Dstyle</span>
+              <span className="text-[8px] font-sans tracking-luxe uppercase text-brand-champagne/70">
+                Admin
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <Link href="/" className="text-[10px] font-sans tracking-luxe uppercase text-white/50">
+                Store
+              </Link>
+              <Link
+                href="/api/auth/signout"
+                aria-label="Sign out"
+                className="text-white/50 hover:text-white transition-colors"
+              >
+                <LogOut size={16} />
+              </Link>
+            </div>
+          </div>
+          <nav className="flex gap-1 px-2 pb-2 overflow-x-auto hide-scrollbar border-t border-white/10 pt-2">
+            {ADMIN_NAV.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-full text-[10px] font-sans font-medium tracking-luxe uppercase text-white/60 hover:text-white bg-white/[0.06] transition-colors"
+                >
+                  <Icon size={13} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {children}
+      </main>
     </div>
   );
 }

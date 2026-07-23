@@ -38,6 +38,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async sendVerificationRequest({ identifier: to, url }) {
         const client = getResendClient();
         if (!client) {
+          // Local development without a Resend key: print the link to the
+          // server console so sign-in still works end-to-end. Never in
+          // production — there a missing key is a hard configuration error.
+          if (process.env.NODE_ENV !== "production") {
+            console.log(
+              `\n──────────── Dstyle dev sign-in ────────────\n  ${to}\n  ${url}\n────────────────────────────────────────────\n`
+            );
+            return;
+          }
           throw new Error(
             "Email sign-in isn't configured yet — add a real RESEND_API_KEY."
           );

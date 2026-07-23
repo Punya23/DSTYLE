@@ -7,6 +7,8 @@ import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles, X, ArrowRight, Send, Mic } from "lucide-react";
 import { useUIStore } from "@/store/ui";
+import { useCartStore } from "@/store/cart";
+import { useAuthModal } from "@/store/auth-modal";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { formatPrice, cn } from "@/lib/utils";
 import { isVideoUrl } from "@/lib/media";
@@ -47,6 +49,14 @@ type Msg =
 
 export function StylistConcierge() {
   const { stylistOpen, openStylist, closeStylist, stylistSeed, clearStylistSeed } = useUIStore();
+  // The floating trigger sits above the cart drawer / search / auth surfaces in
+  // the stacking order, so hide it whenever one of those is open — otherwise the
+  // sparkle button and its nudge overlap (and block) their controls, e.g. the
+  // cart drawer's "Proceed to Checkout" button.
+  const cartOpen = useCartStore((s) => s.isOpen);
+  const searchOpen = useUIStore((s) => s.searchOpen);
+  const authOpen = useAuthModal((s) => s.isOpen);
+  const overlayOpen = cartOpen || searchOpen || authOpen;
   const [messages, setMessages] = useState<Msg[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [typing, setTyping] = useState(false);
@@ -235,7 +245,7 @@ export function StylistConcierge() {
           in view; sits in the natural bottom-right corner everywhere, and only
           lifts clear of the mobile "Select Size" bar on product pages. */}
       <AnimatePresence>
-        {!overHero && (
+        {!overHero && !overlayOpen && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}

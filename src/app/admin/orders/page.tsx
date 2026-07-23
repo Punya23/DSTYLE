@@ -30,14 +30,14 @@ export default async function AdminOrdersPage() {
   const orders = await getOrders();
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <div className="mb-8">
         <p className="text-[10px] font-sans tracking-luxe uppercase text-brand-gold mb-1">Fulfilment</p>
         <h1 className="font-display italic text-3xl lg:text-4xl text-brand-ink">Orders</h1>
       </div>
 
-      <div className="bg-white border border-[#e0e0e0]">
-        <table className="w-full">
+      <div className="bg-white border border-[#e0e0e0] overflow-x-auto">
+        <table className="w-full min-w-[720px]">
           <thead className="border-b border-[#e0e0e0]">
             <tr>
               {["Order ID", "Customer", "Items", "Total", "Status", "Date"].map(

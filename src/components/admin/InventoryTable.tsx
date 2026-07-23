@@ -9,7 +9,7 @@ interface SKUWithProduct {
   size: string;
   color: string | null;
   stock: number;
-  price: unknown;
+  price: number;
   product: { id: string; name: string; slug: string };
 }
 
@@ -59,8 +59,8 @@ export function InventoryTable({ initialSkus }: InventoryTableProps) {
   };
 
   return (
-    <div className="bg-white border border-[#e0e0e0]">
-      <table className="w-full">
+    <div className="bg-white border border-[#e0e0e0] overflow-x-auto">
+      <table className="w-full min-w-[680px]">
         <thead className="border-b border-[#e0e0e0]">
           <tr>
             {["Product", "SKU Code", "Size", "Color", "Stock", ""].map((h) => (

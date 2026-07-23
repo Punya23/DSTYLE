@@ -34,7 +34,7 @@ export default async function AdminProductsPage() {
   const products = await getProducts();
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <p className="text-[10px] font-sans tracking-luxe uppercase text-brand-gold mb-1">Catalogue</p>
@@ -48,8 +48,8 @@ export default async function AdminProductsPage() {
         </Link>
       </div>
 
-      <div className="bg-white border border-[#e0e0e0]">
-        <table className="w-full">
+      <div className="bg-white border border-[#e0e0e0] overflow-x-auto">
+        <table className="w-full min-w-[640px]">
           <thead className="border-b border-[#e0e0e0]">
             <tr>
               {["Product", "Collection", "Price", "Variants", "Status", ""].map(

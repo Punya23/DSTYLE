@@ -203,21 +203,25 @@ body {
 /* ------------------------------------------------------------------ */
 /* Interactions                                                        */
 /* ------------------------------------------------------------------ */
-a {
-  color: inherit;
-  text-decoration: none;
-}
-button {
-  cursor: pointer;
-  border: none;
-  background: none;
-  font-family: inherit;
-  color: inherit;
-}
-img,
-video {
-  max-width: 100%;
-  display: block;
+/* These element resets MUST live in `base`. Unlayered rules beat every cascade
+   layer, so an unlayered `button { background: none; color: inherit }` silently
+   kills every `bg-*` / `text-*` Tailwind utility applied to a <button> — which
+   is how buttons and their labels ended up invisible. Inside `base` they sit
+   below `utilities`, so utilities win as intended. */
+@layer base {
+  a {
+    text-decoration: none;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  img,
+  video {
+    max-width: 100%;
+    display: block;
+  }
 }
 
 ::selection {

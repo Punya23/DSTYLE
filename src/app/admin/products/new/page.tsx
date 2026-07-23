@@ -15,7 +15,7 @@ export default async function NewProductPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <div className="mb-8">
         <Link
           href="/admin/products"
