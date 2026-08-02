@@ -3,11 +3,14 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ImagesSlider } from "@/components/ui/aceternity/images-slider";
 import { ABOUT_HERO_IMAGES } from "@/data/demo-assets";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "About",
-  description: "The story of Dstyle — Indian couture by designer Dipti Shah.",
-};
+  description:
+    "The story of Dstyle — Indian couture by designer Dipti Shah, hand-finished in a Mumbai atelier.",
+  path: "/about",
+});
 
 export default function AboutPage() {
   return (

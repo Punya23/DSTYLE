@@ -9,6 +9,9 @@ import { AuthModal } from "@/components/store/AuthModal";
 import { ConditionalChrome } from "@/components/store/ConditionalChrome";
 import { SmoothScrollProvider } from "@/components/store/SmoothScrollProvider";
 import { Providers } from "./providers";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE, absoluteUrl } from "@/lib/seo";
+import { organizationSchema, websiteSchema } from "@/lib/structured-data";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -25,30 +28,53 @@ const inter = Inter({
   display: "swap",
 });
 
+const HOME_DESCRIPTION =
+  "Hand-embroidered bridal, festive, cocktail and pret couture — crafted in our Mumbai atelier.";
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  // Every relative URL in page metadata (canonicals, OG images) resolves
+  // against this, so it must be the real deployed origin in production.
+  metadataBase: new URL(absoluteUrl("/")),
   title: {
-    default: "Dstyle — Indian Couture",
-    template: "%s | Dstyle",
+    default: `${SITE.name} — ${SITE.tagline}`,
+    template: `%s | ${SITE.name}`,
   },
-  description:
-    "Dstyle — Indian couture for the modern woman. Bridal, festive, and pret collections crafted with intention.",
+  description: SITE.description,
+  applicationName: SITE.name,
   keywords: ["Indian fashion", "designer wear", "bridal", "couture", "lehenga", "saree", "Dstyle"],
+  authors: [{ name: SITE.name, url: absoluteUrl("/") }],
+  creator: SITE.name,
+  publisher: SITE.legalName,
+  category: "shopping",
+  formatDetection: { telephone: false, address: false, email: false },
   openGraph: {
     type: "website",
-    locale: "en_IN",
-    siteName: "Dstyle",
-    title: "Dstyle — Indian Couture",
-    description:
-      "Hand-embroidered bridal, festive, cocktail and pret couture — crafted in our Mumbai atelier.",
+    url: absoluteUrl("/"),
+    locale: SITE.locale,
+    siteName: SITE.name,
+    title: `${SITE.name} — ${SITE.tagline}`,
+    description: HOME_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Dstyle — Indian Couture",
-    description:
-      "Hand-embroidered bridal, festive, cocktail and pret couture — crafted in our Mumbai atelier.",
+    site: SITE.twitter,
+    title: `${SITE.name} — ${SITE.tagline}`,
+    description: HOME_DESCRIPTION,
   },
-  alternates: { canonical: "/" },
+  alternates: { canonical: absoluteUrl("/") },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      // Let Google show full-size image previews and untruncated snippets —
+      // both matter for a visual catalogue.
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export const viewport: Viewport = {
@@ -71,6 +97,9 @@ export default function RootLayout({
       style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}
     >
       <body className="antialiased bg-brand-ivory text-brand-ink w-full overflow-x-clip">
+        {/* Site-wide identity graph. Page-level schemas reference these by @id
+            rather than repeating the publisher on every route. */}
+        <JsonLd data={[organizationSchema(), websiteSchema()]} />
         <Providers>
           <SmoothScrollProvider>
             <ConditionalChrome nav={<NavBar />} footer={<Footer />}>

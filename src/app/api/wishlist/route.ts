@@ -2,13 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { productCardSelect, toProductCard } from "@/lib/product-select";
 
 const bodySchema = z.object({ productId: z.string().min(1) });
 
-/** List the signed-in user's wishlist product IDs (empty when logged out). */
-export async function GET() {
+/**
+ * List the signed-in user's wishlist (empty when logged out).
+ * `?detail=1` returns the full product cards for the wishlist page; the bare
+ * form returns just IDs, which is all the heart toggles on a grid need.
+ */
+export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ productIds: [] });
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      req.nextUrl.searchParams.get("detail") === "1" ? { products: [] } : { productIds: [] }
+    );
+  }
+
+  if (req.nextUrl.searchParams.get("detail") === "1") {
+    const items = await prisma.wishlistItem.findMany({
+      where: { userId: session.user.id, product: { isVisible: true } },
+      orderBy: { id: "desc" },
+      select: { product: { select: productCardSelect } },
+    });
+    return NextResponse.json({ products: items.map((i) => toProductCard(i.product)) });
+  }
 
   const items = await prisma.wishlistItem.findMany({
     where: { userId: session.user.id },

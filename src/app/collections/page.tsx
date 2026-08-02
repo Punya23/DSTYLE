@@ -1,49 +1,19 @@
 import type { Metadata } from "next";
+import { permanentRedirect } from "next/navigation";
 import { CollectionsPageClient } from "@/components/store/CollectionsPageClient";
-import { prisma } from "@/lib/prisma";
-import type { Product } from "@/types";
+import { JsonLd } from "@/components/JsonLd";
+import { getCollectionsData } from "@/lib/collections";
+import { pageMetadata } from "@/lib/seo";
+import { collectionPageSchema, itemListSchema, breadcrumbSchema } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
+const DESCRIPTION =
+  "Browse every Dstyle collection — bridal lehengas, festive ensembles, cocktail gowns and everyday pret, hand-finished in our Mumbai atelier.";
+
+export const metadata: Metadata = pageMetadata({
   title: "Collections",
-  description: "Browse all Dstyle collections — bridal, festive, cocktail, and pret.",
-};
-
-async function getCollectionsData(
-  collectionSlug?: string,
-  tags?: string[]
-): Promise<{ collections: Awaited<ReturnType<typeof prisma.collection.findMany>>; products: Product[] }> {
-  try {
-    const [collections, rawProducts] = await Promise.all([
-      prisma.collection.findMany({
-        where: { isVisible: true },
-        orderBy: { sortOrder: "asc" },
-      }),
-      prisma.product.findMany({
-        where: {
-          isVisible: true,
-          ...(collectionSlug && collectionSlug !== "all"
-            ? { collection: { slug: collectionSlug } }
-            : {}),
-          ...(tags && tags.length > 0 ? { tags: { hasSome: tags } } : {}),
-        },
-        include: {
-          images: { orderBy: { sortOrder: "asc" } },
-          skus: true,
-          collection: { select: { id: true, name: true, slug: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-    ]);
-    const products: Product[] = rawProducts.map((p) => ({
-      ...p,
-      basePrice: Number(p.basePrice),
-      skus: p.skus.map((s) => ({ ...s, price: Number(s.price) })),
-    }));
-    return { collections, products };
-  } catch {
-    return { collections: [], products: [] };
-  }
-}
+  description: DESCRIPTION,
+  path: "/collections",
+});
 
 interface CollectionsPageProps {
   searchParams: Promise<{ collection?: string; tags?: string }>;
@@ -51,15 +21,39 @@ interface CollectionsPageProps {
 
 export default async function CollectionsPage({ searchParams }: CollectionsPageProps) {
   const params = await searchParams;
+
+  // `?collection=` was the old facet URL. Collapse it into the real route
+  // rather than serving the same products at two addresses.
+  if (params.collection && params.collection !== "all") {
+    permanentRedirect(`/collections/${params.collection}`);
+  }
+
   const tags = params.tags ? params.tags.split(",") : undefined;
-  const data = await getCollectionsData(params.collection, tags);
+  const data = await getCollectionsData(undefined, tags);
 
   return (
     <div className="pt-[64px] sm:pt-[76px] bg-brand-ivory min-h-screen">
+      <JsonLd
+        data={[
+          collectionPageSchema("Collections", DESCRIPTION, "/collections"),
+          breadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Collections", path: "/collections" },
+          ]),
+          itemListSchema(
+            data.products.slice(0, 60).map((p) => ({
+              name: p.name,
+              path: `/products/${p.slug}`,
+              image: p.images[0]?.url,
+            })),
+            "Dstyle Collections"
+          ),
+        ]}
+      />
       <CollectionsPageClient
         initialProducts={data.products}
         collections={data.collections}
-        activeCollection={params.collection ?? "all"}
+        activeCollection="all"
       />
     </div>
   );

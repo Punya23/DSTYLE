@@ -17,7 +17,7 @@ import type { OrderStatus } from "@/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PAID: OrderStatus[] = ["CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"];
+const PAID: OrderStatus[] = ["PAID", "PACKED", "SHIPPED", "DELIVERED"];
 
 type Tone = "good" | "watch" | "action";
 type Insight = { title: string; detail: string; tone: Tone };
@@ -98,7 +98,7 @@ async function gatherMetrics() {
   const statusCount = new Map(statusGroups.map((g) => [g.status as OrderStatus, g._count._all]));
   const totalOrders = statusGroups.reduce((s, g) => s + g._count._all, 0);
   const paidOrders = PAID.reduce((s, st) => s + (statusCount.get(st) ?? 0), 0);
-  const cancelled = (statusCount.get("CANCELLED") ?? 0) + (statusCount.get("RETURNED") ?? 0);
+  const cancelled = (statusCount.get("CANCELLED") ?? 0) + (statusCount.get("REFUNDED") ?? 0);
   const totalRevenue = Number(paidAgg._sum.totalAmount ?? 0);
 
   return {

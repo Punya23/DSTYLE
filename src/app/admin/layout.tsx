@@ -7,6 +7,9 @@ import {
   ShoppingBag,
   Layers,
   LogOut,
+  Undo2,
+  Ticket,
+  Settings,
 } from "lucide-react";
 
 const ADMIN_NAV = [
@@ -14,6 +17,9 @@ const ADMIN_NAV = [
   { label: "Products", href: "/admin/products", icon: Package },
   { label: "Inventory", href: "/admin/inventory", icon: Layers },
   { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
+  { label: "Returns", href: "/admin/returns", icon: Undo2 },
+  { label: "Coupons", href: "/admin/coupons", icon: Ticket },
+  { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
 export default async function AdminLayout({

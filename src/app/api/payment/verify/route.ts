@@ -15,7 +15,7 @@ const schema = z.object({
  * Called by the Razorpay Checkout `handler` on the client after a successful
  * payment. This is the AUTHORITATIVE confirmation path — the client success
  * screen must not be trusted until this verifies the signature server-side and
- * flips the order to CONFIRMED.
+ * flips the order to PAID.
  */
 export async function POST(req: NextRequest) {
   const session = await auth();

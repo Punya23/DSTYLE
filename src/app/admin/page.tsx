@@ -5,9 +5,9 @@ import { RevenueAreaChart, HorizontalBars } from "@/components/admin/AdminCharts
 import { AdminInsights } from "@/components/admin/AdminInsights";
 import type { OrderStatus } from "@/types";
 
-const PAID: OrderStatus[] = ["CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"];
+const PAID: OrderStatus[] = ["PAID", "PACKED", "SHIPPED", "DELIVERED"];
 const STATUS_ORDER: OrderStatus[] = [
-  "PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED",
+  "PENDING", "PAID", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED",
 ];
 const DAYS = 14;
 
@@ -239,7 +239,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 function StatusPill({ status }: { status: OrderStatus }) {
   const paid = PAID.includes(status);
-  const cls = status === "CANCELLED" || status === "RETURNED"
+  const cls = status === "CANCELLED" || status === "REFUNDED"
     ? "text-brand-wine bg-brand-wine/8"
     : status === "PENDING"
       ? "text-[#8a6d1a] bg-[#f6efd6]"

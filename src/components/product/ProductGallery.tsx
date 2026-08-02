@@ -1,29 +1,44 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import Image from "next/image";
 import { isVideoUrl } from "@/lib/media";
 import { MediaPlaceholder } from "@/components/store/MediaPlaceholder";
 import { ViewTransition } from "@/lib/view-transition";
-import type { ProductImage } from "@/types";
+import { VIDEO_KIND_LABELS } from "@/lib/product-schema";
+import type { ProductImage, ProductVideo } from "@/types";
 
 interface ProductGalleryProps {
   images: ProductImage[];
+  /** Reels, 360° spins and ramp-walk clips, shown after the stills. */
+  videos?: ProductVideo[];
   productName: string;
   transitionName?: string;
+}
+
+/** One slide — a still or a clip. Videos carry a poster so they never flash black. */
+interface Slide {
+  id: string;
+  url: string;
+  alt: string;
+  isVideo: boolean;
+  poster?: string;
+  label?: string;
 }
 
 function GalleryMedia({
   url,
   alt,
+  poster,
   priority,
   className,
   sizes,
 }: {
   url: string;
   alt: string;
+  poster?: string;
   priority?: boolean;
   className?: string;
   sizes?: string;
@@ -32,10 +47,12 @@ function GalleryMedia({
     return (
       <video
         src={url}
+        poster={poster}
         autoPlay
         muted
         loop
         playsInline
+        controls
         className={className ?? "absolute inset-0 w-full h-full object-cover object-center"}
       />
     );
@@ -53,14 +70,43 @@ function GalleryMedia({
   );
 }
 
-export function ProductGallery({ images, productName, transitionName }: ProductGalleryProps) {
+export function ProductGallery({
+  images,
+  videos = [],
+  productName,
+  transitionName,
+}: ProductGalleryProps) {
   const [selected, setSelected] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const touchStartX = useRef(0);
 
-  const goTo = (index: number) =>
-    setSelected((index + images.length) % images.length);
+  // Stills first in the order the admin arranged them, then the clips — the
+  // shopper sees the garment before the motion.
+  const slides = useMemo<Slide[]>(
+    () => [
+      ...images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        alt: img.altText ?? productName,
+        isVideo: isVideoUrl(img.url),
+        poster: undefined,
+      })),
+      ...[...videos]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((video) => ({
+          id: video.id,
+          url: video.url,
+          alt: `${productName} — ${VIDEO_KIND_LABELS[video.kind]}`,
+          isVideo: true,
+          poster: video.posterUrl ?? undefined,
+          label: VIDEO_KIND_LABELS[video.kind],
+        })),
+    ],
+    [images, videos, productName]
+  );
+
+  const goTo = (index: number) => setSelected((index + slides.length) % slides.length);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -74,7 +120,8 @@ export function ProductGallery({ images, productName, transitionName }: ProductG
   };
 
   const openLightbox = (index: number) => {
-    if (isVideoUrl(images[index]?.url ?? "")) return;
+    // Clips keep their own controls; zooming them would swallow the play state.
+    if (slides[index]?.isVideo) return;
     setLightboxIndex(index);
     setLightboxOpen(true);
     document.body.style.overflow = "hidden";
@@ -86,14 +133,14 @@ export function ProductGallery({ images, productName, transitionName }: ProductG
   }, []);
 
   const prev = useCallback(() => {
-    setLightboxIndex((i) => (i - 1 + images.length) % images.length);
-  }, [images.length]);
+    setLightboxIndex((i) => (i - 1 + slides.length) % slides.length);
+  }, [slides.length]);
 
   const next = useCallback(() => {
-    setLightboxIndex((i) => (i + 1) % images.length);
-  }, [images.length]);
+    setLightboxIndex((i) => (i + 1) % slides.length);
+  }, [slides.length]);
 
-  if (images.length === 0) {
+  if (slides.length === 0) {
     return (
       <div className="relative aspect-[3/4] sm:aspect-[4/5] lg:aspect-[3/4] overflow-hidden">
         <MediaPlaceholder className="w-full h-full" />
@@ -101,8 +148,8 @@ export function ProductGallery({ images, productName, transitionName }: ProductG
     );
   }
 
-  const current = images[selected];
-  const isVideo = isVideoUrl(current.url);
+  const current = slides[selected] ?? slides[0];
+  const isVideo = current.isVideo;
 
   return (
     <>
@@ -128,17 +175,24 @@ export function ProductGallery({ images, productName, transitionName }: ProductG
             >
               <GalleryMedia
                 url={current.url}
-                alt={current.altText ?? productName}
+                alt={current.alt}
+                poster={current.poster}
                 priority
                 className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
               />
             </motion.div>
           </AnimatePresence>
 
-          {images.length > 1 && (
+          {current.label && (
+            <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm px-3 py-1.5 text-[10px] font-sans tracking-widest uppercase text-white z-10">
+              {current.label}
+            </div>
+          )}
+
+          {slides.length > 1 && (
             <>
               <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm px-3 py-1.5 text-[10px] font-sans tracking-widest uppercase text-white z-10">
-                {selected + 1} / {images.length}
+                {selected + 1} / {slides.length}
               </div>
               <button
                 type="button"
@@ -163,7 +217,7 @@ export function ProductGallery({ images, productName, transitionName }: ProductG
                 <ChevronRight size={18} />
               </button>
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-                {images.map((_, i) => (
+                {slides.map((_, i) => (
                   <button
                     key={i}
                     type="button"
@@ -184,29 +238,45 @@ export function ProductGallery({ images, productName, transitionName }: ProductG
         </ViewTransition>
 
         {/* Thumbnails */}
-        {images.length > 1 && (
+        {slides.length > 1 && (
           <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto md:max-h-[520px] lg:max-h-[600px] hide-scrollbar shrink-0 md:w-[72px] lg:w-20 pb-1 md:pb-0 md:order-first">
-            {images.map((img, i) => (
+            {slides.map((slide, i) => (
               <button
-                key={img.id}
+                key={slide.id}
                 type="button"
                 onClick={() => setSelected(i)}
                 className={`relative shrink-0 h-[72px] w-[58px] sm:h-20 sm:w-16 overflow-hidden border-2 transition-colors duration-300 ${
                   selected === i ? "border-brand-gold" : "border-brand-ivory-deep hover:border-brand-champagne"
                 }`}
-                aria-label={`View ${i + 1}`}
+                aria-label={slide.isVideo ? `Play ${slide.label ?? "video"}` : `View ${i + 1}`}
               >
-                {isVideoUrl(img.url) ? (
-                  <video
-                    src={img.url}
-                    muted
-                    playsInline
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
+                {slide.isVideo ? (
+                  <>
+                    {slide.poster ? (
+                      <Image
+                        src={slide.poster}
+                        alt={slide.alt}
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
+                    ) : (
+                      <video
+                        src={slide.url}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    )}
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
+                      <Play size={14} fill="currentColor" />
+                    </span>
+                  </>
                 ) : (
                   <Image
-                    src={img.url}
-                    alt={img.altText ?? `${productName} ${i + 1}`}
+                    src={slide.url}
+                    alt={slide.alt}
                     fill
                     className="object-cover"
                     sizes="64px"
@@ -254,8 +324,9 @@ export function ProductGallery({ images, productName, transitionName }: ProductG
               onClick={(e) => e.stopPropagation()}
             >
               <GalleryMedia
-                url={images[lightboxIndex].url}
-                alt={images[lightboxIndex].altText ?? productName}
+                url={slides[lightboxIndex].url}
+                alt={slides[lightboxIndex].alt}
+                poster={slides[lightboxIndex].poster}
                 className="object-contain"
                 sizes="90vw"
               />

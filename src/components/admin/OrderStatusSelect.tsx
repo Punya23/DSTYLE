@@ -6,22 +6,22 @@ import type { OrderStatus } from "@/types";
 
 const ALL_STATUSES: OrderStatus[] = [
   "PENDING",
-  "CONFIRMED",
-  "PROCESSING",
+  "PAID",
+  "PACKED",
   "SHIPPED",
   "DELIVERED",
   "CANCELLED",
-  "RETURNED",
+  "REFUNDED",
 ];
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   PENDING: "text-yellow-700 bg-yellow-50",
-  CONFIRMED: "text-green-700 bg-green-50",
-  PROCESSING: "text-blue-700 bg-blue-50",
+  PAID: "text-green-700 bg-green-50",
+  PACKED: "text-blue-700 bg-blue-50",
   SHIPPED: "text-purple-700 bg-purple-50",
   DELIVERED: "text-[#888888] bg-[#f5f5f5]",
   CANCELLED: "text-red-700 bg-red-50",
-  RETURNED: "text-red-700 bg-red-50",
+  REFUNDED: "text-red-700 bg-red-50",
 };
 
 export function OrderStatusSelect({

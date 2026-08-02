@@ -3,42 +3,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { productSchema, productScalars } from "@/lib/product-schema";
 
 function refreshStorefront() {
   revalidatePath("/");
   revalidatePath("/collections");
 }
-
-const skuSchema = z.object({
-  id: z.string().optional(),
-  size: z.string().min(1),
-  color: z.string().optional().nullable(),
-  price: z.number().positive(),
-  stock: z.number().int().min(0),
-  skuCode: z.string().min(1),
-});
-
-const imageSchema = z.object({
-  url: z.string().min(1),
-  altText: z.string().optional().nullable(),
-  sortOrder: z.number().int(),
-  isPrimary: z.boolean(),
-});
-
-const updateSchema = z.object({
-  name: z.string().min(1),
-  slug: z.string().min(1),
-  description: z.string().min(1),
-  collectionId: z.string().optional().nullable(),
-  basePrice: z.number().positive(),
-  material: z.string().optional().nullable(),
-  careInstr: z.string().optional().nullable(),
-  tags: z.array(z.string()),
-  isVisible: z.boolean(),
-  isFeatured: z.boolean(),
-  skus: z.array(skuSchema).min(1),
-  images: z.array(imageSchema),
-});
 
 function isAdmin(role: string | undefined) {
   return role === "ADMIN" || role === "STAFF";
@@ -54,7 +24,8 @@ export async function GET(
       where: { id },
       include: {
         images: { orderBy: { sortOrder: "asc" } },
-        skus: { orderBy: [{ size: "asc" }] },
+        videos: { orderBy: { sortOrder: "asc" } },
+        skus: { orderBy: [{ sortOrder: "asc" }, { size: "asc" }] },
         collection: { select: { id: true, name: true, slug: true } },
       },
     });
@@ -78,53 +49,54 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const data = updateSchema.parse(body);
+    const data = productSchema.parse(body);
 
     await prisma.$transaction(async (tx) => {
       await tx.product.update({
         where: { id },
-        data: {
-          name: data.name,
-          slug: data.slug,
-          description: data.description,
-          collectionId: data.collectionId ?? null,
-          basePrice: data.basePrice,
-          material: data.material ?? null,
-          careInstr: data.careInstr ?? null,
-          tags: data.tags,
-          isVisible: data.isVisible,
-          isFeatured: data.isFeatured,
-        },
+        data: { ...productScalars(data), slug: data.slug },
       });
 
       // Upsert SKUs: update existing, create new ones
-      for (const sku of data.skus) {
+      for (const [i, sku] of data.skus.entries()) {
+        const fields = {
+          size: sku.size,
+          color: sku.color ?? null,
+          price: sku.price,
+          stock: sku.stock,
+          skuCode: sku.skuCode,
+          isActive: sku.isActive,
+          lowStockAt: sku.lowStockAt,
+          sortOrder: sku.sortOrder || i,
+        };
         if (sku.id) {
-          await tx.sKU.update({
-            where: { id: sku.id },
-            data: {
-              size: sku.size,
-              color: sku.color ?? null,
-              price: sku.price,
-              stock: sku.stock,
-              skuCode: sku.skuCode,
-            },
-          });
+          await tx.sKU.update({ where: { id: sku.id }, data: fields });
         } else {
-          await tx.sKU.create({
-            data: {
-              productId: id,
-              size: sku.size,
-              color: sku.color ?? null,
-              price: sku.price,
-              stock: sku.stock,
-              skuCode: sku.skuCode,
-            },
-          });
+          await tx.sKU.create({ data: { productId: id, ...fields } });
         }
       }
 
-      // Replace images (no order references, safe to recreate)
+      // Variants the admin removed from the form. A SKU that appears on a past
+      // order can't be deleted without breaking that order's history, so it is
+      // retired instead: zero stock and inactive, which the storefront already
+      // treats as unbuyable.
+      const keptIds = data.skus.map((s) => s.id).filter(Boolean) as string[];
+      const removed = await tx.sKU.findMany({
+        where: { productId: id, id: { notIn: keptIds } },
+        select: { id: true, _count: { select: { orderItems: true } } },
+      });
+      for (const sku of removed) {
+        if (sku._count.orderItems > 0) {
+          await tx.sKU.update({
+            where: { id: sku.id },
+            data: { isActive: false, stock: 0 },
+          });
+        } else {
+          await tx.sKU.delete({ where: { id: sku.id } });
+        }
+      }
+
+      // Replace media (nothing references these rows, safe to recreate)
       await tx.productImage.deleteMany({ where: { productId: id } });
       if (data.images.length > 0) {
         await tx.productImage.createMany({
@@ -132,8 +104,24 @@ export async function PUT(
             productId: id,
             url: img.url,
             altText: img.altText ?? null,
+            kind: img.kind,
             sortOrder: i,
             isPrimary: img.isPrimary,
+          })),
+        });
+      }
+
+      await tx.productVideo.deleteMany({ where: { productId: id } });
+      if (data.videos.length > 0) {
+        await tx.productVideo.createMany({
+          data: data.videos.map((video, i) => ({
+            productId: id,
+            url: video.url,
+            publicId: video.publicId ?? null,
+            posterUrl: video.posterUrl ?? null,
+            kind: video.kind,
+            durationSec: video.durationSec ?? null,
+            sortOrder: i,
           })),
         });
       }
@@ -144,6 +132,12 @@ export async function PUT(
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid data", issues: err.issues }, { status: 400 });
+    }
+    if ((err as { code?: string })?.code === "P2002") {
+      return NextResponse.json(
+        { error: "That SKU code is already used by another variant." },
+        { status: 409 }
+      );
     }
     console.error("Update product error:", err);
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });

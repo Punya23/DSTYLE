@@ -1,0 +1,93 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { CollectionsPageClient } from "@/components/store/CollectionsPageClient";
+import { JsonLd } from "@/components/JsonLd";
+import { getCollectionsData, getCollectionBySlug } from "@/lib/collections";
+import { pageMetadata, SITE } from "@/lib/seo";
+import { collectionPageSchema, itemListSchema, breadcrumbSchema } from "@/lib/structured-data";
+import { prisma } from "@/lib/prisma";
+
+interface CollectionPageProps {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ tags?: string }>;
+}
+
+/**
+ * Pre-render every visible collection. The list is small and changes rarely,
+ * so the pages are static HTML with their metadata already in the document —
+ * no streamed metadata for crawlers to wait on.
+ */
+export async function generateStaticParams() {
+  try {
+    const collections = await prisma.collection.findMany({
+      where: { isVisible: true },
+      select: { slug: true },
+    });
+    return collections.map((c) => ({ slug: c.slug }));
+  } catch {
+    // No DB at build time — the route still renders on demand.
+    return [];
+  }
+}
+
+function describe(name: string, description: string | null): string {
+  return (
+    description ??
+    `Shop the ${name} collection from ${SITE.name} — hand-finished Indian couture, made in our Mumbai atelier.`
+  );
+}
+
+export async function generateMetadata({ params }: CollectionPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const collection = await getCollectionBySlug(slug);
+  if (!collection) return {};
+
+  return pageMetadata({
+    title: collection.name,
+    description: describe(collection.name, collection.description),
+    path: `/collections/${slug}`,
+    ...(collection.bannerImage
+      ? { images: [{ url: collection.bannerImage, alt: collection.name }] }
+      : {}),
+  });
+}
+
+export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
+  const { slug } = await params;
+  const { tags: tagsParam } = await searchParams;
+
+  const collection = await getCollectionBySlug(slug);
+  if (!collection) notFound();
+
+  const tags = tagsParam ? tagsParam.split(",") : undefined;
+  const data = await getCollectionsData(slug, tags);
+  const description = describe(collection.name, collection.description);
+
+  return (
+    <div className="pt-[64px] sm:pt-[76px] bg-brand-ivory min-h-screen">
+      <JsonLd
+        data={[
+          collectionPageSchema(collection.name, description, `/collections/${slug}`),
+          breadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Collections", path: "/collections" },
+            { name: collection.name, path: `/collections/${slug}` },
+          ]),
+          itemListSchema(
+            data.products.slice(0, 60).map((p) => ({
+              name: p.name,
+              path: `/products/${p.slug}`,
+              image: p.images[0]?.url,
+            })),
+            collection.name
+          ),
+        ]}
+      />
+      <CollectionsPageClient
+        initialProducts={data.products}
+        collections={data.collections}
+        activeCollection={slug}
+      />
+    </div>
+  );
+}

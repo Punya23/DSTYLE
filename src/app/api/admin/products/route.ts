@@ -4,36 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
-
-const skuSchema = z.object({
-  size: z.string().min(1),
-  color: z.string().optional().nullable(),
-  price: z.number().positive(),
-  stock: z.number().int().min(0),
-  skuCode: z.string().min(1),
-});
-
-const imageSchema = z.object({
-  url: z.string().min(1),
-  altText: z.string().optional().nullable(),
-  sortOrder: z.number().int(),
-  isPrimary: z.boolean(),
-});
-
-const productSchema = z.object({
-  name: z.string().min(1),
-  slug: z.string().min(1),
-  description: z.string().min(1),
-  collectionId: z.string().optional().nullable(),
-  basePrice: z.number().positive(),
-  material: z.string().optional().nullable(),
-  careInstr: z.string().optional().nullable(),
-  tags: z.array(z.string()),
-  isVisible: z.boolean().default(true),
-  isFeatured: z.boolean().default(false),
-  skus: z.array(skuSchema).min(1),
-  images: z.array(imageSchema),
-});
+import { productSchema, productScalars } from "@/lib/product-schema";
 
 function isAdmin(role: string | undefined) {
   return role === "ADMIN" || role === "STAFF";
@@ -77,31 +48,37 @@ export async function POST(req: NextRequest) {
 
     const product = await prisma.product.create({
       data: {
-        name: data.name,
+        ...productScalars(data),
         slug,
-        description: data.description,
-        collectionId: data.collectionId ?? null,
-        basePrice: data.basePrice,
-        material: data.material ?? null,
-        careInstr: data.careInstr ?? null,
-        tags: data.tags,
-        isVisible: data.isVisible,
-        isFeatured: data.isFeatured,
         skus: {
-          create: data.skus.map((sku) => ({
+          create: data.skus.map((sku, i) => ({
             size: sku.size,
             color: sku.color ?? null,
             price: sku.price,
             stock: sku.stock,
             skuCode: sku.skuCode,
+            isActive: sku.isActive,
+            lowStockAt: sku.lowStockAt,
+            sortOrder: sku.sortOrder || i,
           })),
         },
         images: {
-          create: data.images.map((img) => ({
+          create: data.images.map((img, i) => ({
             url: img.url,
             altText: img.altText ?? null,
-            sortOrder: img.sortOrder,
+            kind: img.kind,
+            sortOrder: img.sortOrder ?? i,
             isPrimary: img.isPrimary,
+          })),
+        },
+        videos: {
+          create: data.videos.map((video, i) => ({
+            url: video.url,
+            publicId: video.publicId ?? null,
+            posterUrl: video.posterUrl ?? null,
+            kind: video.kind,
+            durationSec: video.durationSec ?? null,
+            sortOrder: video.sortOrder ?? i,
           })),
         },
       },

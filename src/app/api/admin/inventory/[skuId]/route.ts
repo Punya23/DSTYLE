@@ -3,7 +3,20 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const schema = z.object({ stock: z.number().int().min(0) });
+/**
+ * Stock is the usual edit; `isActive` is the manual kill-switch for pulling a
+ * size that still has units on the shelf. Zero stock already disables a size
+ * on its own, so that case needs no flag.
+ */
+const schema = z
+  .object({
+    stock: z.number().int().min(0).optional(),
+    isActive: z.boolean().optional(),
+    lowStockAt: z.number().int().min(0).optional(),
+  })
+  .refine((body) => Object.values(body).some((v) => v !== undefined), {
+    message: "Nothing to update",
+  });
 
 export async function PATCH(
   req: NextRequest,
@@ -17,17 +30,20 @@ export async function PATCH(
   try {
     const { skuId } = await params;
     const body = await req.json();
-    const { stock } = schema.parse(body);
+    const data = schema.parse(body);
 
     const updated = await prisma.sKU.update({
       where: { id: skuId },
-      data: { stock },
+      data,
     });
 
     return NextResponse.json({ success: true, sku: updated });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid stock value" }, { status: 400 });
+      return NextResponse.json(
+        { error: err.issues[0]?.message ?? "Invalid stock value" },
+        { status: 400 }
+      );
     }
     console.error("Inventory update error:", err);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });

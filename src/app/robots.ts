@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-
-const BASE = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+import { absoluteUrl } from "@/lib/seo";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,10 +7,12 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // Keep private/transactional and API surfaces out of the index.
-        disallow: ["/admin", "/api/", "/account", "/checkout"],
+        // Private, transactional and single-use surfaces. Product and
+        // collection pages stay fully crawlable.
+        disallow: ["/admin", "/api/", "/account", "/checkout", "/reset-password"],
       },
     ],
-    sitemap: `${BASE}/sitemap.xml`,
+    sitemap: absoluteUrl("/sitemap.xml"),
+    host: absoluteUrl("/"),
   };
 }

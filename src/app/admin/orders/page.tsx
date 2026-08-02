@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/utils";
 import type { OrderStatus } from "@/types";
 import { OrderStatusSelect } from "@/components/admin/OrderStatusSelect";
+import { OrderTrackingCell } from "@/components/admin/OrderTrackingCell";
 
 type OrderRow = Awaited<ReturnType<typeof prisma.order.findMany<{
   include: {
@@ -40,7 +42,7 @@ export default async function AdminOrdersPage() {
         <table className="w-full min-w-[720px]">
           <thead className="border-b border-[#e0e0e0]">
             <tr>
-              {["Order ID", "Customer", "Items", "Total", "Status", "Date"].map(
+              {["Order ID", "Customer", "Items", "Total", "Status", "Tracking", "Date"].map(
                 (h) => (
                   <th
                     key={h}
@@ -56,7 +58,7 @@ export default async function AdminOrdersPage() {
             {orders.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-12 text-center text-[12px] font-sans text-[#888888]"
                 >
                   No orders yet.
@@ -69,9 +71,18 @@ export default async function AdminOrdersPage() {
                   className="border-b border-[#f5f5f5] hover:bg-[#f5f5f5] transition-colors"
                 >
                   <td className="px-4 py-3">
-                    <p className="text-[11px] font-mono text-[#888888]">
+                    <Link
+                      href={`/admin/orders/${order.id}`}
+                      className="text-[11px] font-mono text-[#888888] hover:text-black transition-colors"
+                    >
                       #{order.id.slice(-8).toUpperCase()}
-                    </p>
+                    </Link>
+                    <Link
+                      href={`/admin/orders/${order.id}`}
+                      className="block text-[9px] font-sans tracking-widest uppercase text-brand-gold hover:text-brand-gold-deep transition-colors mt-1"
+                    >
+                      Timeline
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-[12px] font-sans font-medium text-black">
@@ -102,6 +113,13 @@ export default async function AdminOrdersPage() {
                     <OrderStatusSelect
                       orderId={order.id}
                       currentStatus={order.status as OrderStatus}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <OrderTrackingCell
+                      orderId={order.id}
+                      carrier={order.carrier}
+                      trackingNumber={order.trackingNumber}
                     />
                   </td>
                   <td className="px-4 py-3 text-[11px] font-sans text-[#888888]">

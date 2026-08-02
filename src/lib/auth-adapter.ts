@@ -1,34 +1,41 @@
 import type { Adapter, AdapterUser } from "next-auth/adapters";
 import { prisma } from "@/lib/prisma";
+import type { User } from "@/generated/prisma/client";
 
 /**
  * Minimal NextAuth adapter — implements only what this app's flow actually
- * calls: the Email (magic-link) provider under a JWT session strategy.
+ * calls: the Email (magic-link) provider and Google OAuth, both under a JWT
+ * session strategy.
  *
- * That means no Account/Session tables: sign-in with a JWT strategy never
- * calls createSession/getSessionAndUser/deleteSession, and this app has no
- * OAuth provider wired to the adapter (so getUserByAccount/linkAccount are
- * never invoked either). Backed directly by the existing `User` table plus
- * a small `VerificationToken` table — no generic `@auth/prisma-adapter`
- * dependency, and no unused tables sitting empty.
+ * That means no Session table: sign-in with a JWT strategy never calls
+ * createSession/getSessionAndUser/deleteSession. Backed directly by the
+ * existing `User` table plus small `VerificationToken` and `Account` tables —
+ * no generic `@auth/prisma-adapter` dependency, and no unused tables sitting
+ * empty.
  *
  * `User.email` is nullable in the Prisma schema (phone-only accounts can
- * exist), but every user this adapter touches signed in by email, so it's
- * always present in practice — the `!` casts below reflect that invariant,
- * not a runtime guarantee from the schema itself.
+ * exist), but every user this adapter touches signed in by email or Google, so
+ * it's always present in practice — the `!` cast below reflects that
+ * invariant, not a runtime guarantee from the schema itself.
  */
+function toAdapterUser(user: User): AdapterUser {
+  // Strip the password digest before the row travels into NextAuth's callback
+  // chain (and from there into the JWT). Nothing downstream needs it.
+  const safe: Partial<User> = { ...user };
+  delete safe.passwordHash;
+  return { ...safe, email: user.email! } as AdapterUser;
+}
+
 export function DstyleAuthAdapter(): Adapter {
   return {
     async getUser(id) {
       const user = await prisma.user.findUnique({ where: { id } });
-      if (!user) return null;
-      return { ...user, email: user.email! } as AdapterUser;
+      return user ? toAdapterUser(user) : null;
     },
 
     async getUserByEmail(email) {
       const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) return null;
-      return { ...user, email: user.email! } as AdapterUser;
+      return user ? toAdapterUser(user) : null;
     },
 
     async createUser(data) {
@@ -40,7 +47,7 @@ export function DstyleAuthAdapter(): Adapter {
           emailVerified: data.emailVerified,
         },
       });
-      return { ...user, email: user.email! } as AdapterUser;
+      return toAdapterUser(user);
     },
 
     async updateUser(data) {
@@ -53,7 +60,7 @@ export function DstyleAuthAdapter(): Adapter {
           ...(data.emailVerified !== undefined ? { emailVerified: data.emailVerified } : {}),
         },
       });
-      return { ...user, email: user.email! } as AdapterUser;
+      return toAdapterUser(user);
     },
 
     async createVerificationToken(data) {
@@ -70,6 +77,41 @@ export function DstyleAuthAdapter(): Adapter {
         // Already used, or never existed — either way, not a valid sign-in.
         return null;
       }
+    },
+
+    // ── OAuth (Google) ───────────────────────────────────────────────────────
+
+    async getUserByAccount({ provider, providerAccountId }) {
+      const account = await prisma.account.findUnique({
+        where: { provider_providerAccountId: { provider, providerAccountId } },
+        include: { user: true },
+      });
+      return account ? toAdapterUser(account.user) : null;
+    },
+
+    async linkAccount(account) {
+      await prisma.account.create({
+        data: {
+          userId: account.userId,
+          type: account.type,
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+          refresh_token: account.refresh_token ?? null,
+          access_token: account.access_token ?? null,
+          expires_at: account.expires_at ?? null,
+          token_type: account.token_type ?? null,
+          scope: account.scope ?? null,
+          id_token: account.id_token ?? null,
+          session_state:
+            typeof account.session_state === "string" ? account.session_state : null,
+        },
+      });
+    },
+
+    async unlinkAccount({ provider, providerAccountId }) {
+      await prisma.account.delete({
+        where: { provider_providerAccountId: { provider, providerAccountId } },
+      });
     },
   };
 }

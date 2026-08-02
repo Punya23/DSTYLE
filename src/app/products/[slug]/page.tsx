@@ -6,7 +6,11 @@ import { getPocProductBySlug, getRelatedPocProducts } from "@/lib/poc-products";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductActions, ProductMobileBar } from "@/components/product/ProductActions";
 import { FeaturedProducts } from "@/components/store/FeaturedProducts";
-import type { ProductImage, SKU, Product } from "@/types";
+import { TrackProductView, RecentlyViewedStrip } from "@/components/store/RecentlyViewed";
+import { JsonLd } from "@/components/JsonLd";
+import { absoluteUrl, pageMetadata } from "@/lib/seo";
+import { productSchema, breadcrumbSchema } from "@/lib/structured-data";
+import type { ProductImage, ProductVideo, SKU, Product } from "@/types";
 
 function serializeSkus(skus: Array<{ price: unknown } & Record<string, unknown>>): SKU[] {
   return skus.map((s) => ({ ...s, price: Number(s.price) })) as SKU[];
@@ -31,7 +35,8 @@ async function getProductFromDb(slug: string) {
     where: { slug, isVisible: true },
     include: {
       images: { orderBy: { sortOrder: "asc" } },
-      skus: true,
+      videos: { orderBy: { sortOrder: "asc" } },
+      skus: { orderBy: [{ sortOrder: "asc" }, { size: "asc" }] },
       collection: { select: { id: true, name: true, slug: true } },
     },
   });
@@ -47,25 +52,84 @@ async function getRelatedFromDb(productId: string, collectionId: string | null) 
     take: 4,
     include: {
       images: { orderBy: { sortOrder: "asc" } },
-      skus: true,
+      videos: { orderBy: { sortOrder: "asc" } },
+      skus: { orderBy: [{ sortOrder: "asc" }, { size: "asc" }] },
       collection: { select: { id: true, name: true, slug: true } },
     },
   });
 }
 
+/** Rating summary for the product page's schema. Absent when there are none. */
+async function getRatingSummary(productId: string) {
+  try {
+    const [agg, latest] = await Promise.all([
+      prisma.review.aggregate({
+        where: { productId },
+        _avg: { rating: true },
+        _count: { rating: true },
+      }),
+      prisma.review.findMany({
+        where: { productId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          rating: true,
+          title: true,
+          body: true,
+          createdAt: true,
+          user: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    if (agg._count.rating === 0 || agg._avg.rating === null) return null;
+    return {
+      rating: { average: agg._avg.rating, count: agg._count.rating },
+      reviews: latest.map((r) => ({
+        rating: r.rating,
+        title: r.title,
+        body: r.body,
+        createdAt: r.createdAt,
+        author: r.user.name ?? "Verified buyer",
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Product photos are absolute Cloudinary URLs; POC fixtures are site-relative. */
+function toAbsoluteImage(url: string): string {
+  return /^https?:\/\//.test(url) ? url : absoluteUrl(url);
+}
+
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const poc = getPocProductBySlug(slug);
-  if (poc) {
-    return { title: poc.name, description: poc.description.slice(0, 155) };
-  }
+
+  let product: { name: string; description: string; images: { url: string; altText: string | null }[] } | null =
+    null;
+
   try {
-    const product = await getProductFromDb(slug);
-    if (!product) return {};
-    return { title: product.name, description: product.description.slice(0, 155) };
+    product = await getProductFromDb(slug);
   } catch {
-    return {};
+    // DB unavailable — fall through to the POC catalogue below.
   }
+  if (!product) product = getPocProductBySlug(slug) ?? null;
+
+  // Unknown slug: the page itself will 404, so emit nothing rather than a
+  // half-built card for a URL that doesn't exist.
+  if (!product) return {};
+
+  return pageMetadata({
+    title: product.name,
+    description: product.description,
+    path: `/products/${slug}`,
+    // Up to four images — enough for a rich card without bloating the head.
+    images: product.images.slice(0, 4).map((i) => ({
+      url: toAbsoluteImage(i.url),
+      alt: i.altText ?? product.name,
+    })),
+  });
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
@@ -102,11 +166,63 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? (product.skus as SKU[])
     : serializeSkus(product.skus as Array<{ price: unknown } & Record<string, unknown>>);
   const images = product.images as ProductImage[];
+  // POC fixtures predate product video, so the field is simply absent there.
+  const videos = ((product as { videos?: ProductVideo[] }).videos ?? []) as ProductVideo[];
   const primaryImage = images.find((i) => i.isPrimary) ?? images[0];
   const collectionSlug = product.collection?.slug;
 
+  // Garment attributes, rendered as one spec list — only what's filled in.
+  const specs = (
+    [
+      ["Fabric", (product as { fabric?: string | null }).fabric] as [string, string | null | undefined],
+      ["Material", product.material],
+      ["Sleeve", (product as { sleeve?: string | null }).sleeve],
+      ["Neck", (product as { neck?: string | null }).neck],
+      ["Length", (product as { length?: string | null }).length],
+      [
+        "Colour",
+        Array.from(new Set(serializedSkus.map((s) => s.color).filter(Boolean))).join(", "),
+      ],
+      ["Sizes", Array.from(new Set(serializedSkus.map((s) => s.size))).join(" · ")],
+      ["Delivery", (product as { deliveryTime?: string | null }).deliveryTime],
+    ]
+  ).filter((row): row is [string, string] => Boolean(row[1]));
+
+  // Ratings only exist for real catalogue rows; POC fixtures have no reviews.
+  const ratings = fromPoc ? null : await getRatingSummary(product.id);
+
+  const jsonLd = [
+    productSchema({
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      material: product.material,
+      images: images.map((i) => ({ url: toAbsoluteImage(i.url) })),
+      collectionName: product.collection?.name ?? null,
+      skus: serializedSkus.map((s) => ({
+        skuCode: s.skuCode,
+        size: s.size,
+        color: s.color,
+        price: s.price,
+        stock: s.stock,
+      })),
+      basePrice: Number(product.basePrice),
+      rating: ratings?.rating ?? null,
+      reviews: ratings?.reviews,
+    }),
+    breadcrumbSchema([
+      { name: "Home", path: "/" },
+      { name: "Collections", path: "/collections" },
+      ...(product.collection
+        ? [{ name: product.collection.name, path: `/collections/${product.collection.slug}` }]
+        : []),
+      { name: product.name, path: `/products/${product.slug}` },
+    ]),
+  ];
+
   return (
     <div className="pt-[64px] sm:pt-[72px] pb-24 md:pb-16 bg-brand-ivory">
+      <JsonLd data={jsonLd} />
       {/* Breadcrumb */}
       <div className="px-4 sm:px-6 lg:px-12 py-3.5 sm:py-4 overflow-x-auto hide-scrollbar">
         <div className="w-full flex items-center gap-2 sm:gap-2.5 text-[10px] sm:text-[11px] font-sans tracking-wide text-[#888] whitespace-nowrap">
@@ -135,7 +251,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <div className="px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-10 md:py-12 lg:py-16">
         <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 lg:gap-16 xl:gap-24">
-          <ProductGallery images={images} productName={product.name} transitionName={`product-${product.id}`} />
+          <ProductGallery
+            images={images}
+            videos={videos}
+            productName={product.name}
+            transitionName={`product-${product.id}`}
+          />
 
           <div className="min-w-0 md:sticky md:top-[92px] lg:top-[104px] md:self-start space-y-6 md:space-y-8">
             <div>
@@ -162,6 +283,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 primaryImage={primaryImage}
                 skus={serializedSkus}
                 isActive={isActive}
+                deliveryTime={(product as { deliveryTime?: string | null }).deliveryTime}
               />
             </div>
 
@@ -173,17 +295,26 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
 
             <div className="space-y-0 border-t border-brand-ivory-deep">
-              {product.material && (
-                <details className="group border-b border-brand-ivory-deep">
+              {specs.length > 0 && (
+                <details open className="group border-b border-brand-ivory-deep">
                   <summary className="flex items-center justify-between py-4 cursor-pointer list-none text-[11px] font-sans font-medium tracking-luxe uppercase text-brand-ink min-h-[48px] transition-colors duration-300 hover:text-brand-gold">
-                    Material
+                    Details
                     <span className="text-brand-gold group-open:rotate-45 transition-transform duration-300 text-lg leading-none">
                       +
                     </span>
                   </summary>
-                  <p className="pb-5 text-[13px] font-sans text-[#6b6560] leading-[1.85]">
-                    {product.material}
-                  </p>
+                  <dl className="pb-5 grid grid-cols-[minmax(88px,auto)_1fr] gap-x-6 gap-y-2.5">
+                    {specs.map(([label, value]) => (
+                      <div key={label} className="contents">
+                        <dt className="text-[10px] font-sans tracking-luxe uppercase text-[#a09890] pt-0.5">
+                          {label}
+                        </dt>
+                        <dd className="text-[13px] font-sans text-[#6b6560] leading-[1.7]">
+                          {value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
                 </details>
               )}
               {product.careInstr && (
@@ -219,6 +350,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       {related.length > 0 && <FeaturedProducts products={related} compact />}
 
+      <TrackProductView productId={product.id} />
+      <RecentlyViewedStrip
+        excludeId={product.id}
+        className="px-4 sm:px-6 md:px-8 lg:px-12 py-14"
+      />
+
       <ProductMobileBar
         productId={product.id}
         productName={product.name}
@@ -226,6 +363,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         primaryImage={primaryImage}
         skus={serializedSkus}
         isActive={isActive}
+        deliveryTime={(product as { deliveryTime?: string | null }).deliveryTime}
       />
     </div>
   );

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { StyleQuiz } from "@/components/store/StyleQuiz";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Find Your Dstyle",
   description:
     "A 60-second style quiz to discover the Dstyle edit made for you — bridal, festive, cocktail or pret — with picks chosen for your taste.",
-};
+  path: "/style-quiz",
+});
 
 export default function StyleQuizPage() {
   return (

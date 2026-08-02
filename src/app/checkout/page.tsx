@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Script from "next/script";
 import Link from "next/link";
-import { CreditCard, Truck } from "lucide-react";
+import { CreditCard, Truck, Plus } from "lucide-react";
 import { useCartStore } from "@/store/cart";
+import { useCartQuote } from "@/hooks/use-cart-quote";
+import { CouponField, PriceBreakdown } from "@/components/store/PriceBreakdown";
 import { formatPrice, cn } from "@/lib/utils";
+import { formatAddress, type SavedAddress } from "@/lib/address";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -34,13 +36,10 @@ interface Address {
 type PayMethod = "razorpay" | "cod";
 
 const REQUIRED: (keyof Address)[] = ["name", "line1", "city", "state", "pincode", "phone"];
-const SHIPPING_FLAT = 299;
-const FREE_SHIPPING_THRESHOLD = 5000;
 
 export default function CheckoutPage() {
   const { data: session } = useSession();
-  const router = useRouter();
-  const { items, totalPrice, clearCart } = useCartStore();
+  const { items, couponCode, clearCart } = useCartStore();
 
   const [address, setAddress] = useState<Address>({
     name: session?.user?.name ?? "",
@@ -51,28 +50,57 @@ export default function CheckoutPage() {
     pincode: "",
     phone: "",
   });
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  // `null` means "use the form below" — either a new address, or the only
+  // option available before anything has been saved.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [saveAddress, setSaveAddress] = useState(true);
   const [method, setMethod] = useState<PayMethod>("razorpay");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
 
-  const subtotal = totalPrice();
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FLAT;
-  const grandTotal = subtotal + shipping;
+  // The bill is priced server-side, so GST, shipping and the coupon shown here
+  // are the exact figures the order will be created with.
+  const { quote, loading: quoteLoading, couponError } = useCartQuote(method);
+
+  // Pull the address book once the shopper is known to be signed in, and
+  // pre-select their default so returning customers can pay in one click.
+  useEffect(() => {
+    if (!session?.user) return;
+    let cancelled = false;
+    fetch("/api/addresses")
+      .then((res) => (res.ok ? res.json() : { addresses: [] }))
+      .then((json) => {
+        if (cancelled) return;
+        const list = (json.addresses ?? []) as SavedAddress[];
+        setSavedAddresses(list);
+        const preferred = list.find((a) => a.isDefault) ?? list[0];
+        if (preferred) setSelectedId(preferred.id);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user]);
 
   const set = (field: keyof Address, value: string) => {
     setAddress((prev) => ({ ...prev, [field]: value }));
     setError(null);
   };
 
+  const selectedAddress = savedAddresses.find((a) => a.id === selectedId) ?? null;
+
   const handlePlaceOrder = async () => {
     setError(null);
 
-    const missing = REQUIRED.find((f) => !address[f].trim());
-    if (missing) {
-      setError("Please fill in all required delivery details.");
-      return;
+    if (!selectedAddress) {
+      const missing = REQUIRED.find((f) => !address[f].trim());
+      if (missing) {
+        setError("Please fill in all required delivery details.");
+        return;
+      }
     }
     if (method === "razorpay" && (!scriptReady || typeof window.Razorpay === "undefined")) {
       setError("Payment is still loading — please try again in a moment.");
@@ -86,8 +114,11 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: items.map((i) => ({ skuId: i.skuId, quantity: i.quantity })),
-          address,
+          ...(selectedAddress
+            ? { addressId: selectedAddress.id }
+            : { address, saveAddress }),
           paymentMethod: method,
+          couponCode,
         }),
       });
       const data = await res.json();
@@ -120,9 +151,9 @@ export default function CheckoutPage() {
         description: "Indian Couture",
         order_id: data.razorpayOrderId,
         prefill: {
-          name: address.name,
+          name: selectedAddress?.name ?? address.name,
           email: session?.user?.email ?? undefined,
-          contact: address.phone,
+          contact: selectedAddress?.phone ?? address.phone,
         },
         theme: { color: "#0a0a0a" },
         handler: async (response: {
@@ -177,7 +208,7 @@ export default function CheckoutPage() {
             Your order is confirmed and a confirmation email is on its way. Our atelier will begin
             preparing your pieces with care.
           </p>
-          <Link href="/account">
+          <Link href="/account/orders">
             <Button size="lg">View My Orders</Button>
           </Link>
         </div>
@@ -215,7 +246,74 @@ export default function CheckoutPage() {
             <p className="text-[10px] font-sans tracking-luxe uppercase text-brand-gold mb-2">Checkout</p>
             <h1 className="font-display italic text-4xl text-black mb-9">Delivery Details</h1>
 
-            <div className="space-y-5">
+            {savedAddresses.length > 0 && (
+              <div className="mb-8 space-y-3">
+                {savedAddresses.map((saved) => (
+                  <button
+                    key={saved.id}
+                    onClick={() => {
+                      setSelectedId(saved.id);
+                      setError(null);
+                    }}
+                    className={cn(
+                      "w-full flex items-start gap-4 px-5 py-4 border text-left transition-colors",
+                      selectedId === saved.id
+                        ? "border-brand-gold bg-brand-gold/5"
+                        : "border-brand-ivory-deep bg-white hover:border-brand-gold/50"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-1 shrink-0 h-4 w-4 rounded-full border grid place-items-center",
+                        selectedId === saved.id ? "border-brand-gold" : "border-[#ccc]"
+                      )}
+                    >
+                      {selectedId === saved.id && (
+                        <span className="h-2 w-2 rounded-full bg-brand-gold" />
+                      )}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="text-[13px] font-sans font-medium text-black">
+                          {saved.name}
+                        </span>
+                        {saved.isDefault && (
+                          <span className="text-[9px] font-sans tracking-luxe uppercase text-brand-gold">
+                            Default
+                          </span>
+                        )}
+                      </span>
+                      <span className="block text-[11px] font-sans text-[#888] mt-0.5 leading-relaxed">
+                        {formatAddress(saved)}
+                      </span>
+                      <span className="block text-[11px] font-sans text-[#888]">{saved.phone}</span>
+                    </span>
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => {
+                    setSelectedId(null);
+                    setError(null);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-4 px-5 py-4 border text-left transition-colors",
+                    selectedId === null
+                      ? "border-brand-gold bg-brand-gold/5"
+                      : "border-brand-ivory-deep bg-white hover:border-brand-gold/50"
+                  )}
+                >
+                  <span className={cn("shrink-0", selectedId === null ? "text-brand-gold" : "text-[#888]")}>
+                    <Plus size={18} strokeWidth={1.5} />
+                  </span>
+                  <span className="text-[13px] font-sans font-medium text-black">
+                    Deliver to a new address
+                  </span>
+                </button>
+              </div>
+            )}
+
+            <div className={cn("space-y-5", selectedAddress && "hidden")}>
               <Input label="Full Name" value={address.name} onChange={(e) => set("name", e.target.value)} placeholder="As on ID" required />
               <Input label="Address Line 1" value={address.line1} onChange={(e) => set("line1", e.target.value)} placeholder="House / Flat / Building" required />
               <Input label="Address Line 2" value={address.line2} onChange={(e) => set("line2", e.target.value)} placeholder="Street / Area (optional)" />
@@ -227,6 +325,16 @@ export default function CheckoutPage() {
                 <Input label="Pincode" value={address.pincode} onChange={(e) => set("pincode", e.target.value)} placeholder="400001" required />
                 <Input label="Phone" value={address.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91 98765 43210" required />
               </div>
+
+              <label className="flex items-center gap-2.5 text-[12px] font-sans text-[#666] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveAddress}
+                  onChange={(e) => setSaveAddress(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-[#b8935e]"
+                />
+                Save this address to my address book
+              </label>
             </div>
 
             {/* Payment method */}
@@ -271,16 +379,9 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              <div className="border-t border-brand-ivory-deep pt-4 space-y-2">
-                <div className="flex justify-between text-[12px] font-sans text-[#888888]">
-                  <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-[12px] font-sans text-[#888888]">
-                  <span>Shipping</span><span>{shipping === 0 ? "Complimentary" : formatPrice(shipping)}</span>
-                </div>
-                <div className="flex justify-between text-[14px] font-sans font-medium text-black border-t border-brand-ivory-deep pt-3">
-                  <span>Total</span><span>{formatPrice(grandTotal)}</span>
-                </div>
+              <div className="border-t border-brand-ivory-deep pt-4">
+                <CouponField error={couponError} applied={quote.coupon} className="mb-4" />
+                <PriceBreakdown quote={quote} loading={quoteLoading} />
               </div>
 
               {error && (
@@ -290,7 +391,7 @@ export default function CheckoutPage() {
               )}
 
               <Button className="w-full" size="lg" onClick={handlePlaceOrder} loading={loading} disabled={items.length === 0}>
-                {method === "cod" ? "Place Order" : `Pay ${formatPrice(grandTotal)}`}
+                {method === "cod" ? "Place Order" : `Pay ${formatPrice(quote.total)}`}
               </Button>
 
               <p className="text-[10px] font-sans text-[#888888] text-center tracking-wide">

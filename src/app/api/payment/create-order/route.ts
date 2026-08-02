@@ -4,9 +4,8 @@ import { auth } from "@/lib/auth";
 import { razorpay } from "@/lib/razorpay";
 import { prisma } from "@/lib/prisma";
 import { sendOrderConfirmationEmail } from "@/lib/email";
-
-const SHIPPING_FLAT = 299;
-const FREE_SHIPPING_THRESHOLD = 5000;
+import { buildCartQuote } from "@/lib/quote";
+import { redeemCoupon } from "@/lib/coupons";
 
 const addressSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -18,13 +17,24 @@ const addressSchema = z.object({
   phone: z.string().min(6, "Valid phone required"),
 });
 
-const schema = z.object({
-  items: z
-    .array(z.object({ skuId: z.string(), quantity: z.number().int().positive() }))
-    .min(1, "Cart is empty"),
-  address: addressSchema,
-  paymentMethod: z.enum(["razorpay", "cod"]).default("razorpay"),
-});
+const schema = z
+  .object({
+    items: z
+      .array(z.object({ skuId: z.string(), quantity: z.number().int().positive() }))
+      .min(1, "Cart is empty"),
+    /** An address already in the customer's book. Ownership is re-checked below. */
+    addressId: z.string().min(1).optional(),
+    /** A one-off address typed at checkout. */
+    address: addressSchema.optional(),
+    /** Persist a one-off address to the address book for next time. */
+    saveAddress: z.boolean().optional(),
+    paymentMethod: z.enum(["razorpay", "cod"]).default("razorpay"),
+    /** Coupon the customer applied. Re-validated here, never trusted. */
+    couponCode: z.string().trim().max(40).optional().nullable(),
+  })
+  .refine((v) => Boolean(v.addressId) || Boolean(v.address), {
+    message: "A delivery address is required",
+  });
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -46,53 +56,104 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { items, address, paymentMethod } = parsed;
+  const { items, addressId, address, saveAddress, paymentMethod, couponCode } = parsed;
 
   try {
-    const skus = await prisma.sKU.findMany({
-      where: { id: { in: items.map((i) => i.skuId) } },
+    // Server-authoritative bill. Unit prices, GST, shipping and the coupon are
+    // all read back from the database — no amount from the client is trusted.
+    const { quote, problems, couponError, couponId } = await buildCartQuote({
+      items,
+      couponCode,
+      userId,
+      paymentMethod,
     });
 
-    // Server-authoritative stock validation
-    for (const item of items) {
-      const sku = skus.find((s) => s.id === item.skuId);
-      if (!sku) {
-        return NextResponse.json({ error: "One of your items is no longer available." }, { status: 400 });
-      }
-      if (sku.stock < item.quantity) {
+    // Stock is validated as part of the quote. Anything short blocks the order
+    // so the customer sees a corrected bag before money moves.
+    if (problems.length > 0) {
+      const first = problems[0];
+      return NextResponse.json(
+        {
+          error:
+            first.available === 0
+              ? `${first.name} (${first.size}) just sold out. Please remove it from your bag.`
+              : `Only ${first.available} left of ${first.name} (${first.size}). Please adjust your bag.`,
+          problems,
+        },
+        { status: 409 }
+      );
+    }
+    if (quote.lines.length === 0) {
+      return NextResponse.json({ error: "Your bag is empty." }, { status: 400 });
+    }
+    // A coupon that stopped validating must not silently drop off the bill.
+    if (couponCode && couponError) {
+      return NextResponse.json({ error: couponError, couponRejected: true }, { status: 409 });
+    }
+
+    // Resolve the shipping address. A saved one is looked up under the
+    // caller's own user id, so a forged `addressId` can't ship someone else's
+    // order to an attacker's door. A typed-in address is stored either way
+    // (orders reference an Address row) but only stays in the customer's book
+    // when they asked to save it.
+    let addr;
+    if (addressId) {
+      addr = await prisma.address.findFirst({
+        where: { id: addressId, userId, isArchived: false },
+      });
+      if (!addr) {
         return NextResponse.json(
-          { error: `Only ${sku.stock} left of ${sku.skuCode}. Please adjust your cart.` },
-          { status: 409 }
+          { error: "That delivery address is no longer available." },
+          { status: 400 }
         );
+      }
+    } else {
+      addr = await prisma.address.create({
+        data: {
+          userId,
+          name: address!.name,
+          line1: address!.line1,
+          line2: address!.line2 || null,
+          city: address!.city,
+          state: address!.state,
+          pincode: address!.pincode,
+          phone: address!.phone,
+          isArchived: !saveAddress,
+        },
+      });
+
+      // First address the customer saves becomes their default.
+      if (saveAddress) {
+        const others = await prisma.address.count({
+          where: { userId, isArchived: false, id: { not: addr.id } },
+        });
+        if (others === 0) {
+          await prisma.address.update({ where: { id: addr.id }, data: { isDefault: true } });
+        }
       }
     }
 
-    // Server-authoritative pricing (never trust client amounts)
-    const subtotal = items.reduce((sum, item) => {
-      const sku = skus.find((s) => s.id === item.skuId)!;
-      return sum + Number(sku.price) * item.quantity;
-    }, 0);
-    const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FLAT;
-    const total = subtotal + shipping;
+    // Per-line snapshot: price, its share of the discount, and the GST that
+    // was charged on it. Frozen here so a later rate change can't rewrite a
+    // historic invoice.
+    const orderItems = quote.lines.map((line) => ({
+      skuId: line.skuId,
+      quantity: line.quantity,
+      priceSnap: line.unitPrice,
+      discount: line.discount,
+      taxRate: line.taxRate,
+      taxAmount: line.taxAmount,
+    }));
 
-    // Persist the shipping address for this user
-    const addr = await prisma.address.create({
-      data: {
-        userId,
-        name: address.name,
-        line1: address.line1,
-        line2: address.line2 || null,
-        city: address.city,
-        state: address.state,
-        pincode: address.pincode,
-        phone: address.phone,
-      },
-    });
-
-    const orderItems = items.map((item) => {
-      const sku = skus.find((s) => s.id === item.skuId)!;
-      return { skuId: item.skuId, quantity: item.quantity, priceSnap: sku.price };
-    });
+    const money = {
+      subtotal: quote.subtotal,
+      discountTotal: quote.discount,
+      shippingTotal: quote.shipping,
+      taxTotal: quote.tax,
+      totalAmount: quote.total,
+      couponId: couponId ?? null,
+      couponCode: quote.coupon?.code ?? null,
+    };
 
     // ---------------------------------------------------------------------
     // Cash on Delivery — confirm immediately, decrement stock atomically
@@ -101,23 +162,38 @@ export async function POST(req: NextRequest) {
       let orderId: string;
       try {
         const order = await prisma.$transaction(async (tx) => {
-          for (const item of items) {
+          for (const line of quote.lines) {
             const dec = await tx.sKU.updateMany({
-              where: { id: item.skuId, stock: { gte: item.quantity } },
-              data: { stock: { decrement: item.quantity } },
+              where: { id: line.skuId, isActive: true, stock: { gte: line.quantity } },
+              data: { stock: { decrement: line.quantity } },
             });
             if (dec.count !== 1) throw new Error("OUT_OF_STOCK");
           }
-          return tx.order.create({
+
+          const created = await tx.order.create({
             data: {
               userId,
-              totalAmount: total,
+              ...money,
               addressId: addr.id,
-              status: "CONFIRMED",
+              status: "PAID",
               paymentMethod: "COD",
               items: { create: orderItems },
+              events: {
+                create: { status: "PAID", message: "Order placed — cash on delivery." },
+              },
             },
           });
+
+          if (couponId) {
+            await redeemCoupon(tx, {
+              couponId,
+              userId,
+              orderId: created.id,
+              amount: quote.discount,
+            });
+          }
+
+          return created;
         });
         orderId = order.id;
       } catch (e) {
@@ -141,9 +217,9 @@ export async function POST(req: NextRequest) {
       if (full?.user?.email) {
         await sendOrderConfirmationEmail({
           to: full.user.email,
-          customerName: address.name || full.user.name || "",
+          customerName: addr.name || full.user.name || "",
           orderId,
-          total,
+          total: quote.total,
           items: full.items.map((i) => ({
             name: i.sku.product.name,
             size: i.sku.size,
@@ -153,7 +229,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      return NextResponse.json({ cod: true, orderId });
+      return NextResponse.json({ cod: true, orderId, quote });
     }
 
     // ---------------------------------------------------------------------
@@ -161,7 +237,7 @@ export async function POST(req: NextRequest) {
     // after the client verify / webhook.
     // ---------------------------------------------------------------------
     const rzpOrder = await razorpay.orders.create({
-      amount: Math.round(total * 100),
+      amount: Math.round(quote.total * 100),
       currency: "INR",
       receipt: `dstyle_${Date.now()}`,
       notes: { userId },
@@ -170,10 +246,13 @@ export async function POST(req: NextRequest) {
     const order = await prisma.order.create({
       data: {
         userId,
-        totalAmount: total,
+        ...money,
         addressId: addr.id,
         razorpayOrderId: rzpOrder.id,
         items: { create: orderItems },
+        events: {
+          create: { status: "PENDING", message: "Order placed — awaiting payment." },
+        },
       },
     });
 
@@ -183,6 +262,7 @@ export async function POST(req: NextRequest) {
       amount: rzpOrder.amount,
       currency: rzpOrder.currency,
       keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      quote,
     });
   } catch (err) {
     console.error("Create order error:", err);

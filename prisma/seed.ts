@@ -193,18 +193,18 @@ const PRODUCTS: SeedProduct[] = [
 // ---------------------------------------------------------------------------
 const DEMO_ORDERS: {
   daysAgo: number;
-  status: "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+  status: "PENDING" | "PAID" | "PACKED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
   method: string;
   items: { skuCode: string; qty: number }[];
 }[] = [
-  { daysAgo: 0, status: "CONFIRMED", method: "Razorpay", items: [{ skuCode: "DS-005-F", qty: 1 }] },
+  { daysAgo: 0, status: "PAID", method: "Razorpay", items: [{ skuCode: "DS-005-F", qty: 1 }] },
   { daysAgo: 1, status: "PENDING", method: "COD", items: [{ skuCode: "DS-004-M", qty: 1 }] },
-  { daysAgo: 2, status: "CONFIRMED", method: "Razorpay", items: [{ skuCode: "DS-001-S", qty: 1 }] },
+  { daysAgo: 2, status: "PAID", method: "Razorpay", items: [{ skuCode: "DS-001-S", qty: 1 }] },
   { daysAgo: 3, status: "SHIPPED", method: "Razorpay", items: [{ skuCode: "DS-006-S", qty: 1 }, { skuCode: "DS-005-F", qty: 1 }] },
   { daysAgo: 4, status: "DELIVERED", method: "COD", items: [{ skuCode: "DS-003-F", qty: 1 }] },
-  { daysAgo: 5, status: "PROCESSING", method: "Razorpay", items: [{ skuCode: "DS-002-S", qty: 1 }] },
+  { daysAgo: 5, status: "PACKED", method: "Razorpay", items: [{ skuCode: "DS-002-S", qty: 1 }] },
   { daysAgo: 6, status: "DELIVERED", method: "Razorpay", items: [{ skuCode: "DS-005-F", qty: 2 }] },
-  { daysAgo: 7, status: "CONFIRMED", method: "COD", items: [{ skuCode: "DS-004-M", qty: 1 }] },
+  { daysAgo: 7, status: "PAID", method: "COD", items: [{ skuCode: "DS-004-M", qty: 1 }] },
   { daysAgo: 9, status: "DELIVERED", method: "Razorpay", items: [{ skuCode: "DS-001-M", qty: 1 }] },
   { daysAgo: 10, status: "CANCELLED", method: "Razorpay", items: [{ skuCode: "DS-006-S", qty: 1 }] },
   { daysAgo: 11, status: "DELIVERED", method: "Razorpay", items: [{ skuCode: "DS-003-F", qty: 1 }, { skuCode: "DS-005-F", qty: 1 }] },
@@ -353,6 +353,67 @@ async function main() {
     });
   }
   console.log(`   ✓ ${PRODUCTS.length} products with SKUs & images`);
+
+  // --- Store settings & launch coupons --------------------------------------
+  // Upserted by code, so re-running the seed never resets a live counter or
+  // clobbers rates the admin has since tuned.
+  await prisma.storeSetting.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default" },
+  });
+
+  const YEAR_OUT = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  const COUPONS = [
+    {
+      code: "FIRST10",
+      description: "10% off your first order",
+      type: "PERCENT" as const,
+      value: 10,
+      maxDiscount: 3000,
+      minOrder: 2500,
+      perUserLimit: 1,
+      firstOrderOnly: true,
+    },
+    {
+      code: "WELCOME20",
+      description: "20% off for new subscribers",
+      type: "PERCENT" as const,
+      value: 20,
+      maxDiscount: 5000,
+      minOrder: 5000,
+      perUserLimit: 1,
+    },
+    {
+      code: "FESTIVE30",
+      description: "30% off the festive edit",
+      type: "PERCENT" as const,
+      value: 30,
+      maxDiscount: 10000,
+      minOrder: 10000,
+      perUserLimit: 2,
+      expiresAt: YEAR_OUT,
+    },
+    {
+      code: "BUY2GET1",
+      description: "Buy any 2 pieces, the cheapest third is free",
+      type: "BUY_X_GET_Y" as const,
+      value: 0,
+      buyQty: 2,
+      getQty: 1,
+      perUserLimit: 1,
+    },
+  ];
+
+  for (const coupon of COUPONS) {
+    await prisma.coupon.upsert({
+      where: { code: coupon.code },
+      update: {},
+      create: coupon,
+    });
+  }
+  console.log(`   ✓ ${COUPONS.length} launch coupons`);
 
   // --- Demo orders (only when the store has none) ---------------------------
   const existingOrders = await prisma.order.count();

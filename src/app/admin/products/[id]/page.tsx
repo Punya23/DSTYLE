@@ -20,7 +20,8 @@ export default async function EditProductPage({
         where: { id },
         include: {
           images: { orderBy: { sortOrder: "asc" } },
-          skus: { orderBy: [{ size: "asc" }] },
+          videos: { orderBy: { sortOrder: "asc" } },
+          skus: { orderBy: [{ sortOrder: "asc" }, { size: "asc" }] },
         },
       }),
       prisma.collection.findMany({
@@ -59,11 +60,23 @@ export default async function EditProductPage({
           description: product.description,
           collectionId: product.collectionId ?? "",
           basePrice: String(Number(product.basePrice)),
-          material: product.material ?? "",
-          careInstr: product.careInstr ?? "",
           tags: product.tags.join(", "),
           isVisible: product.isVisible,
           isFeatured: product.isFeatured,
+
+          material: product.material ?? "",
+          fabric: product.fabric ?? "",
+          sleeve: product.sleeve ?? "",
+          neck: product.neck ?? "",
+          length: product.length ?? "",
+          careInstr: product.careInstr ?? "",
+          deliveryTime: product.deliveryTime ?? "",
+
+          priceIncludesGst: product.priceIncludesGst,
+          gstRate: product.gstRate == null ? "" : String(Number(product.gstRate)),
+          gstExempt: product.gstExempt,
+          hsnCode: product.hsnCode ?? "",
+
           skus: product.skus.map((sku) => ({
             tempId: sku.id,
             id: sku.id,
@@ -72,14 +85,26 @@ export default async function EditProductPage({
             price: String(Number(sku.price)),
             stock: String(sku.stock),
             skuCode: sku.skuCode,
+            isActive: sku.isActive,
+            lowStockAt: String(sku.lowStockAt),
           })),
           images: product.images.map((img) => ({
             tempId: img.id,
             id: img.id,
             url: img.url,
             altText: img.altText ?? "",
+            kind: img.kind,
             sortOrder: img.sortOrder,
             isPrimary: img.isPrimary,
+          })),
+          videos: product.videos.map((video) => ({
+            tempId: video.id,
+            id: video.id,
+            url: video.url,
+            posterUrl: video.posterUrl ?? "",
+            kind: video.kind,
+            durationSec: video.durationSec == null ? "" : String(video.durationSec),
+            sortOrder: video.sortOrder,
           })),
         }}
       />

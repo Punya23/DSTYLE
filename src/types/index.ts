@@ -2,12 +2,35 @@ import type { Role, OrderStatus } from "@/generated/prisma/client";
 
 export type { Role, OrderStatus };
 
+export type ImageKind =
+  | "FRONT"
+  | "BACK"
+  | "SIDE"
+  | "CLOSEUP"
+  | "FABRIC"
+  | "MODEL"
+  | "LIFESTYLE"
+  | "OTHER";
+
+export type VideoKind = "REEL" | "ROTATION_360" | "RAMP_WALK" | "DETAIL";
+
 export interface ProductImage {
   id: string;
   url: string;
   altText: string | null;
+  /** Shot type — drives gallery ordering and captions. */
+  kind?: ImageKind;
   sortOrder: number;
   isPrimary: boolean;
+}
+
+export interface ProductVideo {
+  id: string;
+  url: string;
+  posterUrl: string | null;
+  kind: VideoKind;
+  durationSec: number | null;
+  sortOrder: number;
 }
 
 export interface SKU {
@@ -17,6 +40,10 @@ export interface SKU {
   skuCode: string;
   stock: number;
   price: number;
+  /** Manual kill-switch; stock 0 disables a size on its own. */
+  isActive?: boolean;
+  lowStockAt?: number;
+  sortOrder?: number;
 }
 
 export interface Product {
@@ -24,12 +51,20 @@ export interface Product {
   name: string;
   slug: string;
   description: string;
-  material: string | null;
-  careInstr: string | null;
   basePrice: number;
   isVisible: boolean;
   isFeatured: boolean;
   tags: string[];
+
+  // Fashion attributes
+  material: string | null;
+  fabric?: string | null;
+  sleeve?: string | null;
+  neck?: string | null;
+  length?: string | null;
+  careInstr: string | null;
+  deliveryTime?: string | null;
+
   collection: {
     id: string;
     name: string;
@@ -37,6 +72,7 @@ export interface Product {
   } | null;
   skus: SKU[];
   images: ProductImage[];
+  videos?: ProductVideo[];
 }
 
 export interface Collection {

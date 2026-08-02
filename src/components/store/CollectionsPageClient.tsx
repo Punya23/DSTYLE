@@ -56,11 +56,14 @@ export function CollectionsPageClient({
     );
   }, [filteredProducts.length, activeCollection]);
 
+  // Each collection is its own indexable URL rather than a query-string facet,
+  // so it can carry its own title, description and canonical.
   const setCollection = (slug: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (slug === "all") params.delete("collection");
-    else params.set("collection", slug);
-    router.push(`/collections?${params.toString()}`);
+    params.delete("collection");
+    const query = params.toString();
+    const base = slug === "all" ? "/collections" : `/collections/${slug}`;
+    router.push(query ? `${base}?${query}` : base);
   };
 
   return (
