@@ -21,24 +21,25 @@ const FOOTER_NAV = {
     { label: "Style Quiz", href: "/style-quiz" },
   ],
   "Customer Care": [
-    { label: "Contact", href: "/about" },
-    { label: "Shipping & Delivery", href: "/about" },
-    { label: "Returns & Exchanges", href: "/about" },
-    { label: "Size Guide", href: "/collections" },
-    { label: "FAQs", href: "/about" },
+    { label: "Contact", href: "/contact" },
+    { label: "Track Order", href: "/track" },
+    { label: "Shipping & Delivery", href: "/policies/shipping" },
+    { label: "Returns & Refunds", href: "/policies/returns" },
+    { label: "Size Guide", href: "/size-guide" },
+    { label: "FAQs", href: "/faq" },
   ],
   House: [
     { label: "About Dstyle", href: "/about" },
-    { label: "The Atelier", href: "/about" },
-    { label: "Press", href: "/about" },
-    { label: "Careers", href: "/about" },
+    { label: "The Atelier", href: "/about#the-atelier" },
+    { label: "Style Quiz", href: "/style-quiz" },
+    { label: "Press & Collaborations", href: "/contact" },
   ],
 };
 
 const LEGAL_LINKS = [
-  { label: "Privacy", href: "/about" },
-  { label: "Terms", href: "/about" },
-  { label: "Cookies", href: "/about" },
+  { label: "Privacy", href: "/policies/privacy" },
+  { label: "Terms", href: "/policies/terms" },
+  { label: "Cookies", href: "/policies/cookies" },
 ];
 
 const MARQUEE_TEXT = "Indian Couture · Bridal · Festive · Pret · Handcrafted in Mumbai · ";
@@ -50,22 +51,36 @@ const fadeUp = {
 
 export function Footer() {
   const [status, setStatus] = useState<"idle" | "sent">("idle");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<NewsletterInput>({
     resolver: zodResolver(newsletterSchema),
-    defaultValues: { email: "" },
+    defaultValues: { email: "", company: "" },
   });
 
-  // NOTE: there is no subscribe endpoint yet — this only shows the confirmation
-  // state and discards the address. Point it at a real list before launch.
-  const handleSubscribe = () => {
-    setStatus("sent");
-    reset();
+  const handleSubscribe = async (values: NewsletterInput) => {
+    setFormError(null);
+    try {
+      const res = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFormError(json.error ?? "Could not sign you up. Please try again.");
+        return;
+      }
+      setStatus("sent");
+      reset();
+    } catch {
+      setFormError("Network problem — check your connection and try again.");
+    }
   };
 
   return (
@@ -119,7 +134,7 @@ export function Footer() {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-[13px] font-sans text-brand-champagne border border-brand-gold/30 bg-brand-gold/[0.06] px-5 py-4"
                 >
-                  Welcome to the House — check your inbox to confirm.
+                  Welcome to the House — you are on the list.
                 </motion.p>
               ) : (
                 <form onSubmit={handleSubmit(handleSubscribe)} noValidate>
@@ -136,18 +151,42 @@ export function Footer() {
                     <MagneticButton className="shrink-0 mt-3 sm:mt-0" strength={0.35}>
                       <button
                         type="submit"
+                        disabled={isSubmitting}
                         style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
-                        className="px-8 py-4 w-full text-[10px] font-sans font-semibold tracking-luxe uppercase transition-[filter] duration-300 hover:brightness-105"
+                        className="px-8 py-4 w-full text-[10px] font-sans font-semibold tracking-luxe uppercase transition-[filter] duration-300 hover:brightness-105 disabled:opacity-60"
                       >
-                        Subscribe
+                        {isSubmitting ? "Joining…" : "Subscribe"}
                       </button>
                     </MagneticButton>
                   </div>
-                  {errors.email && (
-                    <p className="mt-3 text-[12px] font-sans text-brand-champagne">
-                      {errors.email.message}
+
+                  {/* Honeypot — hidden from sight, from screen readers and from
+                      the tab order. Anything that fills it is not a person. */}
+                  <div aria-hidden className="absolute h-0 w-0 overflow-hidden opacity-0">
+                    <label htmlFor="newsletter-company">Company</label>
+                    <input
+                      id="newsletter-company"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      {...register("company")}
+                    />
+                  </div>
+
+                  {(errors.email || formError) && (
+                    <p role="alert" className="mt-3 text-[12px] font-sans text-brand-champagne">
+                      {errors.email?.message ?? formError}
                     </p>
                   )}
+                  <p className="mt-3 text-[11px] font-sans text-white/30 leading-relaxed">
+                    One-click unsubscribe in every email. Read our{" "}
+                    <Link
+                      href="/policies/privacy"
+                      className="text-white/50 underline underline-offset-2 hover:text-white/80 transition-colors duration-300"
+                    >
+                      privacy policy
+                    </Link>
+                    .
+                  </p>
                 </form>
               )}
             </div>

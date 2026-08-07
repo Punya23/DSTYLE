@@ -36,6 +36,18 @@ export const BUDGETS = {
   payment: { limit: 20, windowSec: 600 },
   /** Admin media upload — large bodies, hits Cloudinary. */
   upload: { limit: 30, windowSec: 600 },
+  /**
+   * Contact form. Sends mail from an unauthenticated request, so the ceiling
+   * has to be low enough that the support inbox cannot be used as a relay, and
+   * high enough that a genuine customer can write twice.
+   */
+  contact: { limit: 5, windowSec: 3600 },
+  /**
+   * Newsletter signup. Writes a row but sends nothing, so it is cheaper than
+   * `contact` and gets its own bucket — a customer who just subscribed must
+   * not find the contact form already spent.
+   */
+  newsletter: { limit: 10, windowSec: 3600 },
   /** General authenticated writes. */
   write: { limit: 60, windowSec: 60 },
   /** Public catalogue reads. */

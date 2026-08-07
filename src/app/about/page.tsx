@@ -65,7 +65,10 @@ export default function AboutPage() {
       </div>
 
       {/* Values */}
-      <div className="px-6 lg:px-12 py-16 lg:py-24 bg-white border-y border-brand-ivory-deep">
+      <div
+        id="the-atelier"
+        className="scroll-mt-24 px-6 lg:px-12 py-16 lg:py-24 bg-white border-y border-brand-ivory-deep"
+      >
         <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-12">
           {[
             {

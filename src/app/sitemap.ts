@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { absoluteUrl } from "@/lib/seo";
+import { POLICY_SLUGS } from "@/data/policies";
 
 // Refresh the sitemap hourly so new products get indexed without a redeploy.
 export const revalidate = 3600;
@@ -16,7 +17,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl("/collections"), changeFrequency: "daily", priority: 0.9 },
     { url: absoluteUrl("/style-quiz"), changeFrequency: "monthly", priority: 0.6 },
     { url: absoluteUrl("/about"), changeFrequency: "monthly", priority: 0.5 },
+    { url: absoluteUrl("/faq"), changeFrequency: "monthly", priority: 0.5 },
+    { url: absoluteUrl("/size-guide"), changeFrequency: "monthly", priority: 0.5 },
+    { url: absoluteUrl("/contact"), changeFrequency: "monthly", priority: 0.4 },
     { url: absoluteUrl("/track"), changeFrequency: "monthly", priority: 0.3 },
+    // Policies rank for "<brand> returns policy" queries and are what a
+    // payment provider's reviewer looks for, so they belong in the index.
+    ...POLICY_SLUGS.map((slug) => ({
+      url: absoluteUrl(`/policies/${slug}`),
+      changeFrequency: "yearly" as const,
+      priority: 0.3,
+    })),
   ];
 
   try {

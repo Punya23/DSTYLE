@@ -161,6 +161,45 @@ export type StoreSettingsInput = z.infer<typeof storeSettingsSchema>;
 
 export const newsletterSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+  /**
+   * Honeypot. Real people never see this field, so anything in it is a bot.
+   *
+   * Deliberately permissive: rejecting a filled honeypot here would answer 400
+   * and tell the bot exactly which field gave it away. The routes accept the
+   * value, then quietly discard the submission.
+   */
+  company: z.string().max(200).optional(),
 });
 
 export type NewsletterInput = z.infer<typeof newsletterSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Contact                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export const CONTACT_TOPICS = [
+  "Order or delivery",
+  "Returns or refund",
+  "Sizing and fit",
+  "Made to measure",
+  "Press or collaboration",
+  "Something else",
+] as const;
+
+export const contactSchema = z.object({
+  name: z.string().trim().min(2, "Tell us your name").max(100),
+  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+  phone: phone.optional().or(z.literal("")),
+  topic: z.enum(CONTACT_TOPICS, { message: "Pick a topic" }),
+  /** Optional — most enquiries about an order will have one. */
+  orderRef: optionalText(40),
+  message: z
+    .string()
+    .trim()
+    .min(20, "Give us a little more detail — at least 20 characters")
+    .max(2000, "Please keep it under 2000 characters"),
+  /** Honeypot, as above. */
+  company: z.string().max(200).optional(),
+});
+
+export type ContactInput = z.infer<typeof contactSchema>;

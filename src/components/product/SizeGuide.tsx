@@ -3,29 +3,8 @@
 import { useEffect, useId, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
-
-/**
- * House sizing chart.
- *
- * These are *body* measurements, not garment measurements, and they are the
- * same for every piece — a per-garment table would have to be invented, and an
- * invented measurement is the one mistake a couture shopper never forgives.
- * Ease varies by cut, which the note under the table says out loud.
- */
-const SIZE_ROWS: ReadonlyArray<{ size: string; bust: number; waist: number; hip: number }> = [
-  { size: "XS", bust: 32, waist: 26, hip: 35 },
-  { size: "S", bust: 34, waist: 28, hip: 37 },
-  { size: "M", bust: 36, waist: 30, hip: 39 },
-  { size: "L", bust: 38, waist: 32, hip: 41 },
-  { size: "XL", bust: 40, waist: 34, hip: 43 },
-  { size: "XXL", bust: 42, waist: 36, hip: 45 },
-];
-
-const HOW_TO_MEASURE: ReadonlyArray<[string, string]> = [
-  ["Bust", "Around the fullest part, tape level and not pulled tight."],
-  ["Waist", "Around the narrowest part of the torso, just above the navel."],
-  ["Hip", "Around the fullest part, roughly 8 inches below the waist."],
-];
+import Link from "next/link";
+import { HOW_TO_MEASURE, SIZE_ROWS } from "@/data/sizing";
 
 interface SizeGuideProps {
   open: boolean;
@@ -205,8 +184,21 @@ export function SizeGuide({ open, onClose, availableSizes = [] }: SizeGuideProps
               </dl>
 
               <p className="mt-8 font-sans text-[12px] leading-[1.7] text-brand-grey-dark">
-                Between two sizes, or need a piece cut to your measurements?
-                Book an atelier appointment and we will take it from there.
+                Between two sizes, or need a piece cut to your measurements?{" "}
+                <Link
+                  href="/size-guide"
+                  className="link-reveal text-brand-ink transition-colors duration-300 hover:text-brand-gold"
+                >
+                  Read the full fit guide
+                </Link>{" "}
+                or{" "}
+                <Link
+                  href="/contact"
+                  className="link-reveal text-brand-ink transition-colors duration-300 hover:text-brand-gold"
+                >
+                  write to the atelier
+                </Link>{" "}
+                and we will take it from there.
               </p>
             </div>
           </motion.div>
