@@ -40,6 +40,8 @@ export interface SKU {
   skuCode: string;
   stock: number;
   price: number;
+  /** Compare-at list price. Null/undefined = show no discount for this size. */
+  mrp?: number | null;
   /** Manual kill-switch; stock 0 disables a size on its own. */
   isActive?: boolean;
   lowStockAt?: number;
@@ -52,6 +54,8 @@ export interface Product {
   slug: string;
   description: string;
   basePrice: number;
+  /** Compare-at list price, always >= basePrice. Null/undefined = no discount. */
+  mrp?: number | null;
   isVisible: boolean;
   isFeatured: boolean;
   tags: string[];

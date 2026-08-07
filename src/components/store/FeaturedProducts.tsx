@@ -36,7 +36,7 @@ export function FeaturedProducts({ products, compact = false }: FeaturedProducts
                 key={product.id}
                 className="w-[72%] shrink-0 snap-start md:w-auto md:shrink"
               >
-                <ProductCard product={product} priority={i < 4} compact={compact} index={i} />
+                <ProductCard product={product} priority={i < 4} compact={compact} />
               </div>
             ))}
           </div>

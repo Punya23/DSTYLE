@@ -45,9 +45,9 @@ export function RecentlyViewedStrip({
       </div>
 
       <div className="-mx-6 flex gap-5 overflow-x-auto px-6 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:px-0">
-        {items.map((product, i) => (
+        {items.map((product) => (
           <div key={product.id} className="w-[190px] shrink-0 sm:w-[230px]">
-            <ProductCard product={product} index={i} compact />
+            <ProductCard product={product} compact />
           </div>
         ))}
       </div>

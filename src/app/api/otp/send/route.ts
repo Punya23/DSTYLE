@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({ phone: z.string().regex(/^\+?[1-9]\d{9,14}$/) });
 
@@ -10,6 +11,17 @@ function generateOtp(): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Per-IP ceiling first. The per-phone check below only stops one number being
+  // hammered — without this, rotating the number gives an attacker unlimited
+  // SMS on our Twilio bill.
+  const limited = await enforceRateLimit(
+    req,
+    "otpSend",
+    undefined,
+    "Too many verification codes requested. Please try again later."
+  );
+  if (limited) return limited;
+
   try {
     const body = await req.json();
     const { phone } = schema.parse(body);

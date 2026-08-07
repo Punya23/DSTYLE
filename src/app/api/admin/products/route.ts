@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
 import { productSchema, productScalars } from "@/lib/product-schema";
+import { invalidate } from "@/lib/cache";
 
 function isAdmin(role: string | undefined) {
   return role === "ADMIN" || role === "STAFF";
@@ -84,9 +85,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Refresh the storefront so the new product appears immediately.
+    // Refresh the storefront so the new product appears immediately. The Redis
+    // copy has to be dropped alongside the rendered pages — `revalidatePath`
+    // knows nothing about it.
     revalidatePath("/");
     revalidatePath("/collections");
+    await invalidate("products");
+    await invalidate("collections");
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (err) {

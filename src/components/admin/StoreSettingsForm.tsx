@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm, useWatch, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { StoreConfig } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
+import { storeSettingsSchema, type StoreSettingsInput } from "@/lib/account-schemas";
 
 /**
  * Tax and shipping rules. Changing these affects every future quote; existing
@@ -13,28 +16,33 @@ import { cn } from "@/lib/utils";
  */
 export function StoreSettingsForm({ initial }: { initial: StoreConfig }) {
   const router = useRouter();
-  const [form, setForm] = useState(initial);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
-  const set = <K extends keyof StoreConfig>(key: K, value: StoreConfig[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setSaved(false);
-  };
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<StoreSettingsInput>({
+    resolver: zodResolver(storeSettingsSchema),
+    defaultValues: initial,
+  });
 
-  const num = (key: keyof StoreConfig) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    set(key, (parseFloat(e.target.value) || 0) as never);
+  // The GST rate inputs dim and disable when GST is switched off. `useWatch`
+  // rather than `watch` — the latter returns a fresh function each render, which
+  // makes the React Compiler skip memoizing the whole component.
+  const gstEnabled = useWatch({ control, name: "gstEnabled" });
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+  const handleSave = async (values: StoreSettingsInput) => {
     setError("");
+    setSaved(false);
     try {
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(values),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -42,63 +50,89 @@ export function StoreSettingsForm({ initial }: { initial: StoreConfig }) {
         return;
       }
       setSaved(true);
+      // Re-seed from the server's copy, which is authoritative after the write.
+      reset(data.settings ?? values);
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
-    } finally {
-      setSaving(false);
     }
   };
 
+  /**
+   * `valueAsNumber` yields NaN for an empty input, which fails the schema with an
+   * unhelpful message. Coercing the blank case to 0 keeps the field usable while
+   * still letting the min/max rules do their job.
+   */
+  const numeric = (name: keyof StoreSettingsInput) =>
+    register(name, {
+      setValueAs: (v) => (v === "" || v === null ? 0 : Number(v)),
+    });
+
   return (
-    <form onSubmit={handleSave} className="max-w-2xl space-y-10 pb-16">
+    <form onSubmit={handleSubmit(handleSave)} className="max-w-2xl space-y-10 pb-16" noValidate>
       <section>
         <h2 className="text-[10px] font-sans font-medium tracking-luxe uppercase text-brand-gold mb-4">
           GST
         </h2>
         <div className="bg-white border border-[#e0e0e0] p-6 space-y-5">
-          <Toggle
-            checked={form.gstEnabled}
-            onChange={(v) => set("gstEnabled", v)}
-            label="Charge GST"
-            hint="Turn off to sell without any tax line."
+          {/* The switches aren't `<input>`s, so they go through `Controller`. */}
+          <Controller
+            control={control}
+            name="gstEnabled"
+            render={({ field }) => (
+              <Toggle
+                checked={field.value}
+                onChange={field.onChange}
+                label="Charge GST"
+                hint="Turn off to sell without any tax line."
+              />
+            )}
           />
-          <Toggle
-            checked={form.pricesIncludeGst}
-            onChange={(v) => set("pricesIncludeGst", v)}
-            label="Listed prices include GST"
-            hint="Default for new products. Each product can override this on its own page."
+          <Controller
+            control={control}
+            name="pricesIncludeGst"
+            render={({ field }) => (
+              <Toggle
+                checked={field.value}
+                onChange={field.onChange}
+                label="Listed prices include GST"
+                hint="Default for new products. Each product can override this on its own page."
+              />
+            )}
           />
 
-          <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-4", !form.gstEnabled && "opacity-50")}>
+          <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-4", !gstEnabled && "opacity-50")}>
             <Input
+              id="gst-low-rate"
               label="Low rate (%)"
               type="number"
               min="0"
               max="100"
               step="0.5"
-              value={form.gstLowRate}
-              onChange={num("gstLowRate")}
-              disabled={!form.gstEnabled}
+              disabled={!gstEnabled}
+              error={errors.gstLowRate?.message}
+              {...numeric("gstLowRate")}
             />
             <Input
+              id="gst-high-rate"
               label="High rate (%)"
               type="number"
               min="0"
               max="100"
               step="0.5"
-              value={form.gstHighRate}
-              onChange={num("gstHighRate")}
-              disabled={!form.gstEnabled}
+              disabled={!gstEnabled}
+              error={errors.gstHighRate?.message}
+              {...numeric("gstHighRate")}
             />
             <Input
+              id="gst-slab-threshold"
               label="Slab threshold (₹)"
               type="number"
               min="0"
               step="100"
-              value={form.gstSlabThreshold}
-              onChange={num("gstSlabThreshold")}
-              disabled={!form.gstEnabled}
+              disabled={!gstEnabled}
+              error={errors.gstSlabThreshold?.message}
+              {...numeric("gstSlabThreshold")}
             />
           </div>
           <p className="text-[11px] font-sans text-[#888888] leading-relaxed">
@@ -115,28 +149,31 @@ export function StoreSettingsForm({ initial }: { initial: StoreConfig }) {
         <div className="bg-white border border-[#e0e0e0] p-6 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
+              id="shipping-flat"
               label="Flat rate (₹)"
               type="number"
               min="0"
               step="10"
-              value={form.shippingFlat}
-              onChange={num("shippingFlat")}
+              error={errors.shippingFlat?.message}
+              {...numeric("shippingFlat")}
             />
             <Input
+              id="free-shipping-threshold"
               label="Free above (₹)"
               type="number"
               min="0"
               step="100"
-              value={form.freeShippingThreshold}
-              onChange={num("freeShippingThreshold")}
+              error={errors.freeShippingThreshold?.message}
+              {...numeric("freeShippingThreshold")}
             />
             <Input
+              id="cod-fee"
               label="COD fee (₹)"
               type="number"
               min="0"
               step="10"
-              value={form.codFee}
-              onChange={num("codFee")}
+              error={errors.codFee?.message}
+              {...numeric("codFee")}
             />
           </div>
           <p className="text-[11px] font-sans text-[#888888]">
@@ -152,7 +189,7 @@ export function StoreSettingsForm({ initial }: { initial: StoreConfig }) {
       )}
 
       <div className="flex items-center gap-4">
-        <Button type="submit" loading={saving}>
+        <Button type="submit" loading={isSubmitting}>
           Save Settings
         </Button>
         {saved && (

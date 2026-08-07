@@ -8,6 +8,7 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@/lib/password";
 import { sendPasswordChangedEmail } from "@/lib/auth-emails";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   token: z.string().min(1),
@@ -18,6 +19,11 @@ const INVALID = "This reset link is invalid or has expired. Request a new one.";
 
 /** Redeem a reset link and set a new password. Single use. */
 export async function POST(req: NextRequest) {
+  // Reset tokens are high-entropy, but an unbounded endpoint still lets someone
+  // grind them and burns a DB lookup per attempt.
+  const limited = await enforceRateLimit(req, "authWrite");
+  if (limited) return limited;
+
   let parsed;
   try {
     parsed = bodySchema.parse(await req.json());

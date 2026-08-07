@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CollectionsPageClient } from "@/components/store/CollectionsPageClient";
+import { CollectionHero } from "@/components/store/CollectionHero";
 import { JsonLd } from "@/components/JsonLd";
 import { getCollectionsData, getCollectionBySlug } from "@/lib/collections";
 import { pageMetadata, SITE } from "@/lib/seo";
@@ -83,11 +85,27 @@ export default async function CollectionPage({ params, searchParams }: Collectio
           ),
         ]}
       />
-      <CollectionsPageClient
-        initialProducts={data.products}
-        collections={data.collections}
-        activeCollection={slug}
+      <CollectionHero
+        eyebrow="Collection"
+        title={collection.name}
+        description={description}
+        bannerImage={collection.bannerImage}
+        slug={slug}
+        crumbs={[
+          { label: "Home", href: "/" },
+          { label: "Collections", href: "/collections" },
+          { label: collection.name },
+        ]}
       />
+      {/* See the note in /collections/page.tsx — the boundary guards
+          `useSearchParams` in the client browser below. */}
+      <Suspense fallback={null}>
+        <CollectionsPageClient
+          initialProducts={data.products}
+          collections={data.collections}
+          activeCollection={slug}
+        />
+      </Suspense>
     </div>
   );
 }

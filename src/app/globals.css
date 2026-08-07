@@ -14,14 +14,17 @@
   --color-brand-ink: #17130f;          /* warm near-black — primary text */
   --color-brand-ink-soft: #4c443b;     /* secondary text                 */
   --color-brand-white: #ffffff;
-  --color-brand-ivory: #f7f3ec;        /* warm paper canvas              */
-  --color-brand-ivory-deep: #ece3d4;   /* hairlines, panels, borders     */
+  --color-brand-ivory: #f7f3ec;        /* warm paper canvas — editorial  */
+  --color-brand-paper: #fdfcfa;        /* near-white — commerce surfaces */
+  --color-brand-ivory-deep: #ece3d4;   /* panels, washes                 */
+  --color-brand-line: #e5ded2;         /* the one hairline border colour */
   --color-brand-sand: #e6d6ba;
   --color-brand-sand-light: #f3ebdd;
   --color-brand-gold: #a97c48;         /* metallic accent                */
   --color-brand-gold-deep: #86602f;
   --color-brand-champagne: #d9c19a;    /* light metallic on dark         */
   --color-brand-wine: #5b1f2e;         /* deep accent / errors / sale    */
+  --color-brand-wine-wash: #f5eaec;    /* pale bed for discount chips    */
   --color-brand-grey: #f1ece3;
   --color-brand-grey-mid: #ded4c4;
   --color-brand-grey-dark: #8c8378;    /* muted                          */
@@ -98,35 +101,37 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Fluid display scale — used consistently for section titles */
+/* Fluid display scale — used consistently for section titles.
+   Deliberately restrained: oversized display type reads as a landing page, not
+   a store. Italic is reserved for the hero and brand-story, never commerce. */
 .display-1 {
   font-family: var(--font-display);
   font-weight: 300;
-  line-height: 1.0;
+  line-height: 1.02;
   letter-spacing: -0.02em;
-  font-size: clamp(2.75rem, 8vw, 8rem);
+  font-size: clamp(2.25rem, 5.5vw, 5rem);
 }
 .display-2 {
   font-family: var(--font-display);
   font-weight: 300;
-  line-height: 1.05;
+  line-height: 1.08;
   letter-spacing: -0.015em;
-  font-size: clamp(2.1rem, 5vw, 4.25rem);
+  font-size: clamp(1.9rem, 3.6vw, 3rem);
 }
 .display-3 {
   font-family: var(--font-display);
   font-weight: 300;
-  line-height: 1.1;
+  line-height: 1.15;
   letter-spacing: -0.01em;
-  font-size: clamp(1.6rem, 3vw, 2.5rem);
+  font-size: clamp(1.3rem, 2.4vw, 2rem);
 }
 
 /* Eyebrow / kicker — the ONLY small-caps label style across the site */
 .eyebrow {
   font-family: var(--font-sans);
-  font-size: 0.6875rem;      /* 11px */
+  font-size: 0.625rem;       /* 10px */
   font-weight: 500;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-brand-gold);
 }
@@ -140,8 +145,11 @@ body {
 .text-pretty {
   text-wrap: pretty;
 }
+/* Site-wide micro-label tracking. Tightened from 0.28em — at 10-11px the wider
+   value shredded short labels into disconnected letters on commerce surfaces.
+   The wide setting survives as .tracking-luxe-lg for editorial moments. */
 .tracking-luxe {
-  letter-spacing: 0.28em;
+  letter-spacing: 0.18em;
 }
 .tracking-luxe-lg {
   letter-spacing: 0.4em;
@@ -161,10 +169,10 @@ body {
   padding-inline: clamp(1.25rem, 5vw, 3rem);
 }
 .section-y {
-  padding-block: clamp(4.5rem, 8vw, 8rem);
+  padding-block: clamp(3.5rem, 6vw, 6rem);
 }
 .section-y-sm {
-  padding-block: clamp(3rem, 5vw, 5rem);
+  padding-block: clamp(2.5rem, 4vw, 4rem);
 }
 
 /* Thin gold rules */
@@ -182,6 +190,177 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Commerce primitives — buttons, hairlines, labels, rhythm            */
+/* ------------------------------------------------------------------ */
+/* These sit in `components`, NOT unlayered, so callers can still override a
+   single declaration with a Tailwind utility (`btn-primary w-full`,
+   `hairline-b border-brand-gold`). Unlayered rules outrank every cascade layer
+   and would swallow those utilities — the same trap the base resets below hit. */
+@layer components {
+  /* Section rhythm: py-14 / sm:py-20 / lg:py-24, written out so it stays
+     correct if a caller applies it to an element Tailwind hasn't scanned. */
+  .section-rhythm {
+    padding-block: 3.5rem;
+  }
+  @media (min-width: 40rem) {
+    .section-rhythm {
+      padding-block: 5rem;
+    }
+  }
+  @media (min-width: 64rem) {
+    .section-rhythm {
+      padding-block: 6rem;
+    }
+  }
+
+  /* Hairlines. `.hairline` is a standalone rule element (like .gold-rule);
+     `.hairline-t` / `.hairline-b` are edge borders for panels and rows. */
+  .hairline {
+    height: 1px;
+    width: 100%;
+    background: var(--color-brand-line);
+  }
+  .hairline-t {
+    border-top: 1px solid var(--color-brand-line);
+  }
+  .hairline-b {
+    border-bottom: 1px solid var(--color-brand-line);
+  }
+
+  /* Buttons — square, never rounded. Primary is ink fill; hover inverts to an
+     outline. Gold is accent-only and is never a button fill. */
+  .btn-primary,
+  .btn-secondary,
+  .btn-invert {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0;
+    border-width: 1px;
+    border-style: solid;
+    padding: 0.875rem 2rem;
+    min-height: 2.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;    /* 11px */
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    line-height: 1;
+    text-align: center;
+    transition: background-color 300ms var(--ease-lux),
+      color 300ms var(--ease-lux), border-color 300ms var(--ease-lux);
+  }
+  .btn-primary {
+    background: var(--color-brand-ink);
+    border-color: var(--color-brand-ink);
+    color: var(--color-brand-white);
+  }
+  .btn-primary:hover {
+    background: transparent;
+    color: var(--color-brand-ink);
+  }
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--color-brand-ink);
+    color: var(--color-brand-ink);
+  }
+  .btn-secondary:hover {
+    background: var(--color-brand-ink);
+    color: var(--color-brand-white);
+  }
+  /* For dark surfaces (footer, statement bands) where ink-on-dark disappears */
+  .btn-invert {
+    background: var(--color-brand-white);
+    border-color: var(--color-brand-white);
+    color: var(--color-brand-ink);
+  }
+  .btn-invert:hover {
+    background: transparent;
+    color: var(--color-brand-white);
+  }
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-invert:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-primary:disabled:hover {
+    background: var(--color-brand-ink);
+    color: var(--color-brand-white);
+  }
+  .btn-secondary:disabled:hover {
+    background: transparent;
+    color: var(--color-brand-ink);
+  }
+  .btn-invert:disabled:hover {
+    background: var(--color-brand-white);
+    color: var(--color-brand-ink);
+  }
+
+  /* Uppercase micro-label for tabs, buttons and chips. Same metrics as
+     .eyebrow but inherits colour — .eyebrow is the gold-only variant. */
+  .micro-label {
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;    /* 11px */
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  /* Badges / chips — square, tiny, never a rounded pill */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+    padding: 0.3125rem 0.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.625rem;     /* 10px */
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1;
+    background: var(--color-brand-ink);
+    color: var(--color-brand-white);
+  }
+  .badge-quiet {
+    background: var(--color-brand-ivory-deep);
+    color: var(--color-brand-ink);
+  }
+  /* Discount chip: wine on a pale wash, never a filled red pill */
+  .badge-sale {
+    background: var(--color-brand-wine-wash);
+    color: var(--color-brand-wine);
+  }
+
+  /* Product name on cards and PDP — upright sans, never serif italic */
+  .product-title {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;    /* 13px */
+    font-weight: 500;
+    font-style: normal;
+    letter-spacing: 0.005em;
+    line-height: 1.45;
+    text-transform: none;
+    color: var(--color-brand-ink);
+  }
+  .price-was {
+    color: var(--color-brand-grey-dark);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  .body-copy {
+    font-family: var(--font-sans);
+    font-size: 0.875rem;     /* 14px */
+    line-height: 1.7;
+    color: var(--color-brand-ink-soft);
+  }
 }
 
 /* ------------------------------------------------------------------ */

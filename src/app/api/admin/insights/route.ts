@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { groqConfigured, groqJSON } from "@/lib/groq";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import type { OrderStatus } from "@/types";
 
 /**
@@ -24,8 +25,6 @@ type Insight = { title: string; detail: string; tone: Tone };
 type Brief = { headline: string; insights: Insight[]; recommendations: string[] };
 
 const DAYS = 14;
-const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
 async function gatherMetrics() {
   const now = new Date();
@@ -247,11 +246,16 @@ tone: good = healthy, watch = keep an eye on, action = do something now.`;
   return parsed;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.role || !["ADMIN", "STAFF"].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
+
+  // `force-dynamic` means every dashboard mount runs nine aggregate queries and
+  // a paid LLM call. Cap it so a left-open tab polling the dashboard can't.
+  const limited = await enforceRateLimit(req, "ai", session.user.id);
+  if (limited) return limited;
 
   try {
     const metrics = await gatherMetrics();

@@ -5,15 +5,33 @@ import { prisma } from "@/lib/prisma";
 import { getPocProductBySlug, getRelatedPocProducts } from "@/lib/poc-products";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductActions, ProductMobileBar } from "@/components/product/ProductActions";
-import { FeaturedProducts } from "@/components/store/FeaturedProducts";
+import { ProductTrust } from "@/components/product/ProductTrust";
+import { ProductOffers, type StoreOffer } from "@/components/product/ProductOffers";
+import {
+  ProductTabs,
+  type TabReview,
+  type TabSize,
+  type TabSpec,
+} from "@/components/product/ProductTabs";
+import { ProductRail } from "@/components/store/ProductRail";
 import { TrackProductView, RecentlyViewedStrip } from "@/components/store/RecentlyViewed";
 import { JsonLd } from "@/components/JsonLd";
+import { RETURN_WINDOW_DAYS } from "@/lib/account";
+import { fromPrice } from "@/lib/inventory";
+import { discountPercent } from "@/lib/pricing";
 import { absoluteUrl, pageMetadata } from "@/lib/seo";
+import { getStoreConfig } from "@/lib/settings";
 import { productSchema, breadcrumbSchema } from "@/lib/structured-data";
+import { formatPrice } from "@/lib/utils";
 import type { ProductImage, ProductVideo, SKU, Product } from "@/types";
 
+/** `null` stays `null`; a Prisma `Decimal` becomes a plain number. */
+function toMoney(v: unknown): number | null {
+  return v == null ? null : Number(v);
+}
+
 function serializeSkus(skus: Array<{ price: unknown } & Record<string, unknown>>): SKU[] {
-  return skus.map((s) => ({ ...s, price: Number(s.price) })) as SKU[];
+  return skus.map((s) => ({ ...s, price: Number(s.price), mrp: toMoney(s.mrp) })) as SKU[];
 }
 
 function serializeProducts(
@@ -22,6 +40,7 @@ function serializeProducts(
   return products.map((p) => ({
     ...p,
     basePrice: Number(p.basePrice),
+    mrp: toMoney(p.mrp),
     skus: serializeSkus(p.skus),
   })) as unknown as Product[];
 }
@@ -59,7 +78,11 @@ async function getRelatedFromDb(productId: string, collectionId: string | null) 
   });
 }
 
-/** Rating summary for the product page's schema. Absent when there are none. */
+/**
+ * Rating summary for the product page. Feeds both the JSON-LD block and the
+ * Reviews tab, so the star average a shopper reads and the one Google reads are
+ * the same aggregate. Absent when the piece has no reviews.
+ */
 async function getRatingSummary(productId: string) {
   try {
     const [agg, latest] = await Promise.all([
@@ -73,6 +96,7 @@ async function getRatingSummary(productId: string) {
         orderBy: { createdAt: "desc" },
         take: 5,
         select: {
+          id: true,
           rating: true,
           title: true,
           body: true,
@@ -86,6 +110,7 @@ async function getRatingSummary(productId: string) {
     return {
       rating: { average: agg._avg.rating, count: agg._count.rating },
       reviews: latest.map((r) => ({
+        id: r.id,
         rating: r.rating,
         title: r.title,
         body: r.body,
@@ -95,6 +120,105 @@ async function getRatingSummary(productId: string) {
     };
   } catch {
     return null;
+  }
+}
+
+/** One fixed locale, resolved on the server, so no date is re-formatted client-side. */
+const DATE_FORMAT = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "Asia/Kolkata",
+});
+
+/**
+ * Coupons a shopper could actually redeem against this piece right now:
+ * switched on, inside their window, not fully redeemed, and either unscoped or
+ * scoped to this product or its collection. Every field of the rendered offer
+ * is a column on the row — nothing is composed here, so a store with no live
+ * coupons shows no offers block at all.
+ */
+async function getLiveOffers(
+  productId: string,
+  collectionId: string | null
+): Promise<StoreOffer[]> {
+  try {
+    const now = new Date();
+    const rows = await prisma.coupon.findMany({
+      where: {
+        isActive: true,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          {
+            OR: [
+              { AND: [{ productIds: { isEmpty: true } }, { collectionIds: { isEmpty: true } }] },
+              { productIds: { has: productId } },
+              ...(collectionId ? [{ collectionIds: { has: collectionId } }] : []),
+            ],
+          },
+        ],
+      },
+      // Soonest to expire first, so a code about to lapse is the one on screen.
+      orderBy: [{ expiresAt: "asc" }, { createdAt: "desc" }],
+      take: 8,
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        type: true,
+        value: true,
+        maxDiscount: true,
+        minOrder: true,
+        buyQty: true,
+        getQty: true,
+        expiresAt: true,
+        usageLimit: true,
+        usageCount: true,
+        firstOrderOnly: true,
+      },
+    });
+
+    return rows
+      // A fully redeemed code is dead; Prisma can't compare two columns in the
+      // filter, so the cap is applied here.
+      .filter((c) => c.usageLimit == null || c.usageCount < c.usageLimit)
+      .slice(0, 3)
+      .map((c) => {
+        // Mirrors `describe()` in lib/coupons.ts — the label a shopper sees at
+        // checkout when the same code is applied.
+        const value = Number(c.value);
+        let label: string;
+        switch (c.type) {
+          case "PERCENT":
+            label = `${value}% off`;
+            break;
+          case "FIXED":
+            label = `${formatPrice(value)} off`;
+            break;
+          case "FREE_SHIPPING":
+            label = "Free shipping";
+            break;
+          case "BUY_X_GET_Y":
+            label = `Buy ${c.buyQty ?? 0} get ${c.getQty ?? 0} free`;
+            break;
+          default:
+            label = "Discount applied";
+        }
+
+        const terms: string[] = [];
+        if (c.minOrder != null) terms.push(`Minimum order ${formatPrice(Number(c.minOrder))}`);
+        if (c.type === "PERCENT" && c.maxDiscount != null) {
+          terms.push(`Up to ${formatPrice(Number(c.maxDiscount))}`);
+        }
+        if (c.firstOrderOnly) terms.push("First order only");
+        if (c.expiresAt) terms.push(`Ends ${DATE_FORMAT.format(c.expiresAt)}`);
+
+        return { id: c.id, code: c.code, label, description: c.description, terms };
+      });
+  } catch {
+    // No database (the POC catalogue path) — there are no live coupons to show.
+    return [];
   }
 }
 
@@ -188,8 +312,57 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ]
   ).filter((row): row is [string, string] => Boolean(row[1]));
 
-  // Ratings only exist for real catalogue rows; POC fixtures have no reviews.
-  const ratings = fromPoc ? null : await getRatingSummary(product.id);
+  // Ratings, coupons and store config only exist for real catalogue rows; the
+  // POC catalogue runs with no database at all.
+  const [ratings, offers, storeConfig] = await Promise.all([
+    fromPoc ? Promise.resolve(null) : getRatingSummary(product.id),
+    fromPoc
+      ? Promise.resolve<StoreOffer[]>([])
+      : getLiveOffers(product.id, (product as { collectionId?: string | null }).collectionId ?? null),
+    getStoreConfig(),
+  ]);
+
+  // Price row. `mrp` is a Prisma Decimal on the database path and a plain
+  // number on the POC path, so it goes through the same money serialiser as
+  // every other amount on this page.
+  const price = fromPrice(serializedSkus);
+  const mrp = toMoney((product as { mrp?: unknown }).mrp);
+  const savedPercent = discountPercent(price, mrp);
+  const hasPriceRange = new Set(serializedSkus.map((s) => s.price)).size > 1;
+
+  // "Inclusive of all taxes" is only true when GST is switched on, the piece
+  // isn't exempt, and its price already contains the tax.
+  const taxRow = product as { priceIncludesGst?: boolean; gstExempt?: boolean };
+  const taxInclusive =
+    storeConfig.gstEnabled &&
+    !taxRow.gstExempt &&
+    (taxRow.priceIncludesGst ?? storeConfig.pricesIncludeGst);
+
+  const tabSpecs: TabSpec[] = specs.map(([label, value]) => ({ label, value }));
+
+  // One entry per size the piece is cut in; "in stock" is derived from the SKU
+  // count, exactly as the size chips derive it.
+  const tabSizes: TabSize[] = Array.from(
+    serializedSkus
+      .reduce((acc, sku) => {
+        const previous = acc.get(sku.size);
+        acc.set(sku.size, {
+          size: sku.size,
+          inStock: (previous?.inStock ?? false) || ((sku.isActive ?? true) && sku.stock > 0),
+        });
+        return acc;
+      }, new Map<string, TabSize>())
+      .values()
+  );
+
+  const tabReviews: TabReview[] = (ratings?.reviews ?? []).map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    title: r.title,
+    body: r.body,
+    date: DATE_FORMAT.format(r.createdAt),
+    author: r.author,
+  }));
 
   const jsonLd = [
     productSchema({
@@ -221,10 +394,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
   ];
 
   return (
-    <div className="pt-[64px] sm:pt-[72px] pb-24 md:pb-16 bg-brand-ivory">
+    // The floor clears the sticky mobile buy bar *and* the iOS home indicator
+    // underneath it, so the last strip is never trapped behind the bar.
+    <div className="pt-[64px] sm:pt-[72px] pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-16 bg-brand-ivory">
       <JsonLd data={jsonLd} />
       {/* Breadcrumb */}
-      <div className="px-4 sm:px-6 lg:px-12 py-3.5 sm:py-4 overflow-x-auto hide-scrollbar">
+      <nav
+        aria-label="Breadcrumb"
+        className="px-4 sm:px-6 lg:px-12 py-3.5 sm:py-4 overflow-x-auto hide-scrollbar"
+      >
         <div className="w-full flex items-center gap-2 sm:gap-2.5 text-[10px] sm:text-[11px] font-sans tracking-wide text-[#888] whitespace-nowrap">
           <Link href="/" transitionTypes={["nav-back"]} className="hover:text-brand-gold transition-colors duration-300">
             Home
@@ -247,7 +425,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <span className="text-brand-champagne">/</span>
           <span className="text-brand-ink truncate max-w-[140px] sm:max-w-none">{product.name}</span>
         </div>
-      </div>
+      </nav>
 
       <div className="px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-10 md:py-12 lg:py-16">
         <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 lg:gap-16 xl:gap-24">
@@ -263,15 +441,40 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {product.collection && (
                 <Link
                   href={`/collections?collection=${collectionSlug}`}
-                  className="group inline-flex items-center gap-3 text-[10px] sm:text-[11px] font-sans tracking-luxe uppercase text-brand-gold hover:text-brand-gold-deep transition-colors duration-300"
+                  className="group inline-flex min-h-11 sm:min-h-0 items-center gap-3 text-[10px] sm:text-[11px] font-sans tracking-luxe uppercase text-brand-gold hover:text-brand-gold-deep transition-colors duration-300"
                 >
                   <span className="h-px w-7 gold-rule-solid opacity-70 transition-all duration-500 group-hover:w-10" />
                   {product.collection.name}
                 </Link>
               )}
-              <h1 className="font-display italic text-brand-ink text-balance text-[2rem] sm:text-4xl md:text-[2.6rem] lg:text-5xl leading-[1.05] mt-3.5">
+              {/* Upright, never italic — italic is the hero's, not commerce's. */}
+              <h1 className="display-2 not-italic text-brand-ink text-balance mt-3.5">
                 {product.name}
               </h1>
+
+              {/* Wraps rather than overflows: at 320px the price, its compare-at
+                  and the saving chip do not fit on one line. */}
+              <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+                <span className="font-display text-[1.75rem] sm:text-[2rem] leading-none text-brand-ink tabular-nums">
+                  {formatPrice(price)}
+                </span>
+                {savedPercent != null && mrp != null && (
+                  <>
+                    <span className="price-was font-sans text-[13px] sm:text-sm tabular-nums">
+                      {formatPrice(mrp)}
+                    </span>
+                    <span className="badge badge-sale">{savedPercent}% OFF</span>
+                  </>
+                )}
+                {hasPriceRange && (
+                  <span className="font-sans text-[12px] text-brand-grey-dark">onwards</span>
+                )}
+              </div>
+              {taxInclusive && (
+                <p className="mt-2 font-sans text-[11px] text-brand-grey-dark">
+                  Inclusive of all taxes
+                </p>
+              )}
             </div>
 
             {/* Laptop / desktop purchase panel */}
@@ -284,71 +487,50 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 skus={serializedSkus}
                 isActive={isActive}
                 deliveryTime={(product as { deliveryTime?: string | null }).deliveryTime}
+                mrp={mrp}
+                freeShippingThreshold={storeConfig.freeShippingThreshold}
               />
             </div>
 
-            <div className="space-y-3.5 pt-7 border-t border-brand-ivory-deep">
-              <p className="text-[10px] font-sans tracking-luxe uppercase text-brand-gold">The Piece</p>
-              <p className="font-sans text-[13px] sm:text-[14px] text-[#6b6560] leading-[1.85]">
-                {product.description}
-              </p>
-            </div>
+            <ProductTrust
+              price={price}
+              fabric={(product as { fabric?: string | null }).fabric ?? product.material}
+              deliveryTime={(product as { deliveryTime?: string | null }).deliveryTime}
+              freeShippingThreshold={storeConfig.freeShippingThreshold}
+              codFee={storeConfig.codFee}
+              className="pt-2"
+            />
 
-            <div className="space-y-0 border-t border-brand-ivory-deep">
-              {specs.length > 0 && (
-                <details open className="group border-b border-brand-ivory-deep">
-                  <summary className="flex items-center justify-between py-4 cursor-pointer list-none text-[11px] font-sans font-medium tracking-luxe uppercase text-brand-ink min-h-[48px] transition-colors duration-300 hover:text-brand-gold">
-                    Details
-                    <span className="text-brand-gold group-open:rotate-45 transition-transform duration-300 text-lg leading-none">
-                      +
-                    </span>
-                  </summary>
-                  <dl className="pb-5 grid grid-cols-[minmax(88px,auto)_1fr] gap-x-6 gap-y-2.5">
-                    {specs.map(([label, value]) => (
-                      <div key={label} className="contents">
-                        <dt className="text-[10px] font-sans tracking-luxe uppercase text-[#a09890] pt-0.5">
-                          {label}
-                        </dt>
-                        <dd className="text-[13px] font-sans text-[#6b6560] leading-[1.7]">
-                          {value}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </details>
-              )}
-              {product.careInstr && (
-                <details className="group border-b border-brand-ivory-deep">
-                  <summary className="flex items-center justify-between py-4 cursor-pointer list-none text-[11px] font-sans font-medium tracking-luxe uppercase text-brand-ink min-h-[48px] transition-colors duration-300 hover:text-brand-gold">
-                    Care Instructions
-                    <span className="text-brand-gold group-open:rotate-45 transition-transform duration-300 text-lg leading-none">
-                      +
-                    </span>
-                  </summary>
-                  <p className="pb-5 text-[13px] font-sans text-[#6b6560] leading-[1.85]">
-                    {product.careInstr}
-                  </p>
-                </details>
-              )}
-              <details className="group border-b border-brand-ivory-deep">
-                <summary className="flex items-center justify-between py-4 cursor-pointer list-none text-[11px] font-sans font-medium tracking-luxe uppercase text-brand-ink min-h-[48px] transition-colors duration-300 hover:text-brand-gold">
-                  Shipping &amp; Returns
-                  <span className="text-brand-gold group-open:rotate-45 transition-transform duration-300 text-lg leading-none">
-                    +
-                  </span>
-                </summary>
-                <div className="pb-5 text-[13px] font-sans text-[#6b6560] leading-[1.85] space-y-2">
-                  <p>Complimentary standard shipping on orders above ₹5,000.</p>
-                  <p>Express delivery available at checkout.</p>
-                  <p>Returns accepted within 7 days of delivery.</p>
-                </div>
-              </details>
-            </div>
+            {/* Renders nothing at all when no coupon is live for this piece. */}
+            <ProductOffers offers={offers} />
+
+            <ProductTabs
+              description={product.description}
+              specs={tabSpecs}
+              fabric={(product as { fabric?: string | null }).fabric}
+              material={product.material}
+              careInstr={product.careInstr}
+              lengthNote={(product as { length?: string | null }).length}
+              sizes={tabSizes}
+              deliveryTime={(product as { deliveryTime?: string | null }).deliveryTime}
+              shippingFlat={storeConfig.shippingFlat}
+              freeShippingThreshold={storeConfig.freeShippingThreshold}
+              codFee={storeConfig.codFee}
+              returnWindowDays={RETURN_WINDOW_DAYS}
+              rating={ratings?.rating ?? null}
+              reviews={tabReviews}
+            />
           </div>
         </div>
       </div>
 
-      {related.length > 0 && <FeaturedProducts products={related} compact />}
+      {/* Renders nothing when there is nothing related to show. */}
+      <ProductRail
+        products={related}
+        eyebrow="Keep looking"
+        title="You may also like"
+        className="bg-brand-paper"
+      />
 
       <TrackProductView productId={product.id} />
       <RecentlyViewedStrip
@@ -364,6 +546,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
         skus={serializedSkus}
         isActive={isActive}
         deliveryTime={(product as { deliveryTime?: string | null }).deliveryTime}
+        mrp={mrp}
+        freeShippingThreshold={storeConfig.freeShippingThreshold}
       />
     </div>
   );

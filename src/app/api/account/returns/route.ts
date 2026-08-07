@@ -3,20 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isReturnEligible } from "@/lib/account";
-
-const bodySchema = z.object({
-  orderId: z.string().min(1),
-  reason: z.string().trim().min(1, "Pick a reason").max(120),
-  comment: z.string().trim().max(1000).optional().or(z.literal("")),
-  items: z
-    .array(
-      z.object({
-        orderItemId: z.string().min(1),
-        quantity: z.number().int().min(1),
-      })
-    )
-    .min(1, "Select at least one item to return"),
-});
+import { returnRequestSchema as bodySchema } from "@/lib/account-schemas";
 
 /** Raise a return request for part or all of a delivered order. */
 export async function POST(req: NextRequest) {

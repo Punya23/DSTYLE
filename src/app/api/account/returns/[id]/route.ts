@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isReturnCancellable } from "@/lib/account";
+
+/** Ids are cuids; anything else can't match a row, so reject it before querying. */
+const paramsSchema = z.object({ id: z.string().cuid() });
 
 /**
  * Customer-side cancellation of their own return request. The row is kept
@@ -14,7 +18,11 @@ export async function PATCH(_req: NextRequest, ctx: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Please sign in." }, { status: 401 });
   }
 
-  const { id } = await ctx.params;
+  const parsed = paramsSchema.safeParse(await ctx.params);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Return request not found." }, { status: 404 });
+  }
+  const { id } = parsed.data;
 
   const existing = await prisma.returnRequest.findFirst({
     where: { id, userId: session.user.id },

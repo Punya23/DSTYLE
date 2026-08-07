@@ -2,23 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import type { SavedAddress } from "@/lib/address";
+import { addressInputSchema, type AddressInput, type SavedAddress } from "@/lib/address";
 
-type Draft = {
-  name: string;
-  line1: string;
-  line2: string;
-  city: string;
-  state: string;
-  pincode: string;
-  phone: string;
-  isDefault: boolean;
-};
-
-const EMPTY: Draft = {
+const EMPTY: AddressInput = {
   name: "",
   line1: "",
   line2: "",
@@ -29,7 +20,7 @@ const EMPTY: Draft = {
   isDefault: false,
 };
 
-function toDraft(address: SavedAddress): Draft {
+function toDraft(address: SavedAddress): AddressInput {
   return {
     name: address.name,
     line1: address.line1,
@@ -49,42 +40,54 @@ function toDraft(address: SavedAddress): Draft {
 export function AddressBook({ addresses }: { addresses: SavedAddress[] }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  // Whether the form is on screen at all. Kept separate from the form values
+  // because the RHF hook has to be called unconditionally.
+  const [open, setOpen] = useState(false);
+  // Busy state for the row actions (delete, set-default), which aren't submits.
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<AddressInput>({
+    resolver: zodResolver(addressInputSchema),
+    defaultValues: EMPTY,
+  });
+
   function startAdd() {
     setEditingId(null);
-    setDraft({ ...EMPTY, isDefault: addresses.length === 0 });
+    // The first address a customer saves should be their default.
+    reset({ ...EMPTY, isDefault: addresses.length === 0 });
+    setOpen(true);
     setError(null);
   }
 
   function startEdit(address: SavedAddress) {
     setEditingId(address.id);
-    setDraft(toDraft(address));
+    reset(toDraft(address));
+    setOpen(true);
     setError(null);
   }
 
   function cancel() {
-    setDraft(null);
+    setOpen(false);
     setEditingId(null);
+    reset(EMPTY);
     setError(null);
   }
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (!draft) return;
-
-    setBusy(true);
+  async function save(values: AddressInput) {
     setError(null);
 
     const res = await fetch(editingId ? `/api/addresses/${editingId}` : "/api/addresses", {
       method: editingId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
+      body: JSON.stringify(values),
     });
     const json = await res.json().catch(() => ({}));
-    setBusy(false);
 
     if (!res.ok) {
       setError(json.error ?? "Could not save this address.");
@@ -123,13 +126,17 @@ export function AddressBook({ addresses }: { addresses: SavedAddress[] }) {
     router.refresh();
   }
 
-  const field = (key: keyof Draft, label: string, extra?: Partial<React.ComponentProps<typeof Input>>) => (
+  const field = (
+    key: Exclude<keyof AddressInput, "isDefault">,
+    label: string,
+    extra?: Partial<React.ComponentProps<typeof Input>>
+  ) => (
     <Input
       id={`address-${key}`}
       label={label}
-      value={String(draft?.[key] ?? "")}
-      onChange={(e) => setDraft((d) => (d ? { ...d, [key]: e.target.value } : d))}
+      error={errors[key]?.message}
       {...extra}
+      {...register(key)}
     />
   );
 
@@ -193,35 +200,34 @@ export function AddressBook({ addresses }: { addresses: SavedAddress[] }) {
         </div>
       )}
 
-      {draft ? (
-        <form onSubmit={save} className="max-w-xl space-y-4 border border-brand-ivory-deep bg-white p-6">
+      {open ? (
+        <form
+          onSubmit={handleSubmit(save)}
+          className="max-w-xl space-y-4 border border-brand-ivory-deep bg-white p-6"
+          noValidate
+        >
           <p className="text-[11px] font-sans font-semibold tracking-luxe uppercase text-black">
             {editingId ? "Edit address" : "New address"}
           </p>
 
-          {field("name", "Full name", { required: true, maxLength: 120 })}
-          {field("line1", "Address line 1", { required: true, maxLength: 200 })}
+          {field("name", "Full name", { maxLength: 120 })}
+          {field("line1", "Address line 1", { maxLength: 200 })}
           {field("line2", "Address line 2", { maxLength: 200 })}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {field("city", "City", { required: true, maxLength: 80 })}
-            {field("state", "State", { required: true, maxLength: 80 })}
-            {field("pincode", "PIN code", { required: true, inputMode: "numeric", maxLength: 6 })}
-            {field("phone", "Phone", { required: true, type: "tel" })}
+            {field("city", "City", { maxLength: 80 })}
+            {field("state", "State", { maxLength: 80 })}
+            {field("pincode", "PIN code", { inputMode: "numeric", maxLength: 6 })}
+            {field("phone", "Phone", { type: "tel" })}
           </div>
 
           <label className="flex items-center gap-2 text-[11px] font-sans text-[#666666]">
-            <input
-              type="checkbox"
-              checked={draft.isDefault}
-              onChange={(e) => setDraft((d) => (d ? { ...d, isDefault: e.target.checked } : d))}
-              className="accent-brand-gold"
-            />
+            <input type="checkbox" className="accent-brand-gold" {...register("isDefault")} />
             Use as my default delivery address
           </label>
 
           <div className="flex gap-3">
-            <Button type="submit" size="sm" loading={busy}>
+            <Button type="submit" size="sm" loading={isSubmitting}>
               {editingId ? "Save address" : "Add address"}
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={cancel}>

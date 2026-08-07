@@ -4,8 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { MagneticButton } from "@/components/ui/aceternity/magnetic-button";
 import { GoldParticleField } from "@/components/store/GoldParticleField";
+import { newsletterSchema, type NewsletterInput } from "@/lib/account-schemas";
 
 const FOOTER_NAV = {
   Shop: [
@@ -46,14 +49,23 @@ const fadeUp = {
 };
 
 export function Footer() {
-  const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sent">("idle");
 
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<NewsletterInput>({
+    resolver: zodResolver(newsletterSchema),
+    defaultValues: { email: "" },
+  });
+
+  // NOTE: there is no subscribe endpoint yet — this only shows the confirmation
+  // state and discards the address. Point it at a real list before launch.
+  const handleSubscribe = () => {
     setStatus("sent");
-    setEmail("");
+    reset();
   };
 
   return (
@@ -110,24 +122,32 @@ export function Footer() {
                   Welcome to the House — check your inbox to confirm.
                 </motion.p>
               ) : (
-                <form className="flex flex-col sm:flex-row gap-0" onSubmit={handleSubscribe}>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Your email address"
-                    className="flex-1 bg-white/[0.04] border border-white/12 px-5 py-4 text-sm font-sans text-white placeholder:text-white/25 focus:outline-none focus:border-brand-gold focus:bg-white/[0.06] transition-colors duration-500"
-                  />
-                  <MagneticButton className="shrink-0 mt-3 sm:mt-0" strength={0.35}>
-                    <button
-                      type="submit"
-                      style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
-                      className="px-8 py-4 w-full text-[10px] font-sans font-semibold tracking-luxe uppercase transition-[filter] duration-300 hover:brightness-105"
-                    >
-                      Subscribe
-                    </button>
-                  </MagneticButton>
+                <form onSubmit={handleSubmit(handleSubscribe)} noValidate>
+                  <div className="flex flex-col sm:flex-row gap-0">
+                    <input
+                      type="email"
+                      placeholder="Your email address"
+                      aria-invalid={Boolean(errors.email)}
+                      /* text-base on touch — under 16px iOS Safari zooms the
+                         page on focus and never zooms back out. */
+                      className="flex-1 bg-white/[0.04] border border-white/12 px-5 py-4 text-base sm:text-sm font-sans text-white placeholder:text-white/25 focus:outline-none focus:border-brand-gold focus:bg-white/[0.06] transition-colors duration-500 aria-[invalid=true]:border-brand-gold/60"
+                      {...register("email")}
+                    />
+                    <MagneticButton className="shrink-0 mt-3 sm:mt-0" strength={0.35}>
+                      <button
+                        type="submit"
+                        style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
+                        className="px-8 py-4 w-full text-[10px] font-sans font-semibold tracking-luxe uppercase transition-[filter] duration-300 hover:brightness-105"
+                      >
+                        Subscribe
+                      </button>
+                    </MagneticButton>
+                  </div>
+                  {errors.email && (
+                    <p className="mt-3 text-[12px] font-sans text-brand-champagne">
+                      {errors.email.message}
+                    </p>
+                  )}
                 </form>
               )}
             </div>
@@ -163,7 +183,7 @@ export function Footer() {
                   href="https://instagram.com/dipti__shahh"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2.5 text-[11px] font-sans tracking-[0.15em] text-white/55 hover:text-brand-champagne transition-colors duration-500 group"
+                  className="inline-flex min-h-11 sm:min-h-0 items-center gap-2.5 text-[11px] font-sans tracking-[0.15em] text-white/55 hover:text-brand-champagne transition-colors duration-500 group"
                 >
                   <svg
                     width="15"
@@ -196,7 +216,10 @@ export function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="link-reveal group inline-flex items-center gap-1.5 text-[12px] font-sans text-white/45 hover:text-white transition-colors duration-500 leading-relaxed"
+                      /* min-h-11 on touch: a footer navigation list is not
+                         inline prose, so each link needs the 44px target.
+                         Relaxes back to the tighter desktop rhythm at `sm`. */
+                      className="link-reveal group inline-flex min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 items-center gap-1.5 text-[12px] font-sans text-white/45 hover:text-white transition-colors duration-500 leading-relaxed"
                     >
                       {link.label}
                       <ArrowUpRight
@@ -223,7 +246,7 @@ export function Footer() {
               <Link
                 key={link.label}
                 href={link.href}
-                className="link-reveal inline-block text-[10px] font-sans tracking-[0.18em] uppercase text-white/30 hover:text-white/70 transition-colors duration-500"
+                className="link-reveal inline-flex min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 items-center justify-center text-[10px] font-sans tracking-[0.18em] uppercase text-white/30 hover:text-white/70 transition-colors duration-500"
               >
                 {link.label}
               </Link>

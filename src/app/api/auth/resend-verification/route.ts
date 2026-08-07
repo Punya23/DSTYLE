@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { issueVerificationEmail, VERIFY_PREFIX } from "@/lib/verification";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /** Ignore repeat requests inside this window so the inbox can't be flooded. */
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -14,6 +15,10 @@ const bodySchema = z.object({ email: z.string().trim().toLowerCase().email() });
  * address. Responds identically for unknown/already-verified addresses.
  */
 export async function POST(req: NextRequest) {
+  // As with forgot-password: the cooldown is per account, this is per caller.
+  const limited = await enforceRateLimit(req, "authWrite");
+  if (limited) return limited;
+
   let email: string;
   try {
     email = bodySchema.parse(await req.json()).email;

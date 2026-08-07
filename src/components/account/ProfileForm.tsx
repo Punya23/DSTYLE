@@ -3,8 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { profileSchema, type ProfileInput } from "@/lib/account-schemas";
 
 interface ProfileFormProps {
   name: string;
@@ -17,14 +20,26 @@ interface ProfileFormProps {
 export function ProfileForm({ name, phone, email, emailVerified }: ProfileFormProps) {
   const router = useRouter();
   const { update } = useSession();
-  const [values, setValues] = useState({ name, phone });
-  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string | null>(null);
+  // Server-side failures that aren't tied to one field — e.g. the phone number
+  // already belonging to another account.
+  const [formError, setFormError] = useState<string | null>(null);
+  // Tracked here rather than read from `isSubmitSuccessful`, which only reports
+  // that the handler returned — it knows nothing about the response status.
+  const [saved, setSaved] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus("saving");
-    setError(null);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<ProfileInput>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: { name, phone },
+  });
+
+  async function onSubmit(values: ProfileInput) {
+    setFormError(null);
+    setSaved(false);
 
     const res = await fetch("/api/account/profile", {
       method: "PUT",
@@ -34,26 +49,30 @@ export function ProfileForm({ name, phone, email, emailVerified }: ProfileFormPr
     const json = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      setError(json.error ?? "Could not save your details.");
-      setStatus("idle");
+      setFormError(json.error ?? "Could not save your details.");
       return;
     }
 
-    setStatus("saved");
+    setSaved(true);
+    // Re-seed the form with what was saved so the fields are no longer dirty.
+    reset(values);
     // Refresh the JWT so the header greeting picks up the new name.
     await update({ name: values.name });
     router.refresh();
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-md space-y-5 border border-brand-ivory-deep bg-white p-6">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="max-w-md space-y-5 border border-brand-ivory-deep bg-white p-6"
+      noValidate
+    >
       <Input
         id="profile-name"
         label="Full name"
-        value={values.name}
-        onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
-        required
         maxLength={100}
+        error={errors.name?.message}
+        {...register("name")}
       />
 
       <Input
@@ -61,8 +80,8 @@ export function ProfileForm({ name, phone, email, emailVerified }: ProfileFormPr
         label="Phone"
         type="tel"
         placeholder="+91 98765 43210"
-        value={values.phone}
-        onChange={(e) => setValues((v) => ({ ...v, phone: e.target.value }))}
+        error={errors.phone?.message}
+        {...register("phone")}
       />
 
       <div className="flex flex-col gap-2">
@@ -81,12 +100,10 @@ export function ProfileForm({ name, phone, email, emailVerified }: ProfileFormPr
         </p>
       </div>
 
-      {error && <p className="text-xs font-sans text-brand-wine">{error}</p>}
-      {status === "saved" && !error && (
-        <p className="text-xs font-sans text-brand-gold">Saved.</p>
-      )}
+      {formError && <p className="text-xs font-sans text-brand-wine">{formError}</p>}
+      {saved && !formError && <p className="text-xs font-sans text-brand-gold">Saved.</p>}
 
-      <Button type="submit" loading={status === "saving"} size="sm">
+      <Button type="submit" loading={isSubmitting} size="sm">
         Save changes
       </Button>
     </form>

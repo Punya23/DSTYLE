@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  hashPassword,
-  verifyPassword,
-  validatePasswordStrength,
-  PASSWORD_MIN_LENGTH,
-} from "@/lib/password";
+import { hashPassword, verifyPassword, validatePasswordStrength } from "@/lib/password";
 import { sendPasswordChangedEmail } from "@/lib/auth-emails";
-
-const bodySchema = z.object({
-  currentPassword: z.string().optional(),
-  newPassword: z.string().min(PASSWORD_MIN_LENGTH),
-});
+import { passwordChangeSchema as bodySchema } from "@/lib/account-schemas";
 
 /**
  * Change (or, for magic-link/Google accounts, set for the first time) the

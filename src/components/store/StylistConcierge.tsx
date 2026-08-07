@@ -72,12 +72,14 @@ export function StylistConcierge() {
   // Hide the floating trigger while the page's hero (if any) is in view — it
   // competes with the hero's own CTAs. Re-checks on every route change since
   // only the homepage has a [data-site-hero] element.
+  const [heroPathname, setHeroPathname] = useState(pathname);
+  if (heroPathname !== pathname) {
+    setHeroPathname(pathname);
+    setOverHero(false);
+  }
   useEffect(() => {
     const heroEl = document.querySelector("[data-site-hero]");
-    if (!heroEl) {
-      setOverHero(false);
-      return;
-    }
+    if (!heroEl) return;
     const io = new IntersectionObserver(([entry]) => setOverHero(entry.isIntersecting), {
       threshold: 0.15,
     });
@@ -101,11 +103,9 @@ export function StylistConcierge() {
   }, []);
 
   // Greeting on first open (skipped when opened with a seeded question)
-  useEffect(() => {
-    if (stylistOpen && messages.length === 0 && !stylistSeed) {
-      setMessages([{ role: "bot", text: "Namaste. I'm your Dstyle stylist — tell me what you're dressing for and I'll guide you to the right pieces." }]);
-    }
-  }, [stylistOpen, messages.length, stylistSeed]);
+  if (stylistOpen && messages.length === 0 && !stylistSeed) {
+    setMessages([{ role: "bot", text: "Namaste. I'm your Dstyle stylist — tell me what you're dressing for and I'll guide you to the right pieces." }]);
+  }
 
   const scrollToBottom = (smooth = true) =>
     scrollRef.current?.scrollTo({
@@ -208,7 +208,7 @@ export function StylistConcierge() {
     if (stylistOpen && stylistSeed) {
       const seed = stylistSeed;
       clearStylistSeed();
-      respond(seed);
+      queueMicrotask(() => respond(seed));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stylistOpen, stylistSeed]);
@@ -481,9 +481,13 @@ export function StylistConcierge() {
  */
 function TypewriterText({ text, onReveal }: { text: string; onReveal?: () => void }) {
   const [count, setCount] = useState(0);
+  const [prevText, setPrevText] = useState(text);
+  if (prevText !== text) {
+    setPrevText(text);
+    setCount(0);
+  }
 
   useEffect(() => {
-    setCount(0);
     if (!text) return;
     // Reveal ~2 chars per frame → a ~120-char reply finishes in under a second.
     const id = window.setInterval(() => {

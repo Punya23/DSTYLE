@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { groqConfigured, groqJSON } from "@/lib/groq";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * AI Stylist — a Groq-backed couture concierge.
@@ -18,7 +20,22 @@ export const runtime = "nodejs";
 
 const COLLECTIONS = ["bridal", "festive", "cocktail", "pret"] as const;
 
-type IncomingMessage = { role: "user" | "assistant"; text: string };
+/**
+ * The conversation the client replays on every turn. Bounded on both axes: an
+ * unbounded array would be read fully into memory before we ever get to the
+ * `.slice(-12)`, and an unbounded `text` would be pasted straight into the
+ * prompt we pay tokens for.
+ */
+const bodySchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        text: z.string().max(2000),
+      })
+    )
+    .max(50),
+});
 
 async function loadCatalogue() {
   try {
@@ -98,21 +115,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "no_key" }, { status: 503 });
   }
 
-  let incoming: IncomingMessage[] = [];
+  // Every accepted request is a paid LLM call plus a 60-row catalogue query.
+  const limited = await enforceRateLimit(
+    req,
+    "ai",
+    undefined,
+    "You've reached the styling-session limit for now. Please try again later."
+  );
+  if (limited) return limited;
+
+  let incoming: z.infer<typeof bodySchema>["messages"];
   try {
-    const body = await req.json();
-    incoming = Array.isArray(body?.messages) ? body.messages : [];
+    incoming = bodySchema.parse(await req.json()).messages;
   } catch {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
 
   const convo = incoming
-    .filter((m) => m && typeof m.text === "string" && m.text.trim())
+    .filter((m) => m.text.trim())
     .slice(-12) // keep the last few turns
-    .map((m) => ({
-      role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-      content: m.text.slice(0, 2000),
-    }));
+    .map((m) => ({ role: m.role, content: m.text }));
 
   // Drop any leading assistant turns so the first message is the user's.
   while (convo.length && convo[0].role !== "user") convo.shift();

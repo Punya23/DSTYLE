@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { RETURN_REASONS } from "@/lib/account";
 import { formatPrice } from "@/lib/utils";
+import { returnRequestSchema, type ReturnRequestInput } from "@/lib/account-schemas";
 
 export interface ReturnableItem {
   id: string;
@@ -24,50 +27,58 @@ export function ReturnRequestForm({
   items: ReturnableItem[];
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Record<string, number>>({});
-  const [reason, setReason] = useState<string>(RETURN_REASONS[0]);
-  const [comment, setComment] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<ReturnRequestInput>({
+    resolver: zodResolver(returnRequestSchema),
+    defaultValues: { orderId, reason: RETURN_REASONS[0], comment: "", items: [] },
+  });
+
+  // The selection lives in form state so the "at least one item" rule is
+  // enforced by the same schema the API uses, not by a separate hand-check.
+  // `useWatch` rather than `watch` — the latter returns a fresh function each
+  // render, which makes the React Compiler skip memoizing the whole component.
+  const lines = useWatch({ control, name: "items" });
+  const selected: Record<string, number> = Object.fromEntries(
+    lines.map((line) => [line.orderItemId, line.quantity])
+  );
 
   function toggle(item: ReturnableItem) {
-    setSelected((prev) => {
-      const next = { ...prev };
-      if (next[item.id]) delete next[item.id];
-      else next[item.id] = item.quantity;
-      return next;
-    });
+    const next = lines.some((line) => line.orderItemId === item.id)
+      ? lines.filter((line) => line.orderItemId !== item.id)
+      : [...lines, { orderItemId: item.id, quantity: item.quantity }];
+    setValue("items", next, { shouldValidate: true });
   }
 
   function setQuantity(item: ReturnableItem, quantity: number) {
-    setSelected((prev) => ({ ...prev, [item.id]: Math.min(Math.max(quantity, 1), item.quantity) }));
+    const clamped = Math.min(Math.max(quantity, 1), item.quantity);
+    setValue(
+      "items",
+      lines.map((line) =>
+        line.orderItemId === item.id ? { ...line, quantity: clamped } : line
+      ),
+      { shouldValidate: true }
+    );
   }
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const lines = Object.entries(selected).map(([orderItemId, quantity]) => ({
-      orderItemId,
-      quantity,
-    }));
-
-    if (lines.length === 0) {
-      setError("Select at least one item to return.");
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
+  async function onSubmit(values: ReturnRequestInput) {
+    setFormError(null);
 
     const res = await fetch("/api/account/returns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, reason, comment, items: lines }),
+      body: JSON.stringify(values),
     });
     const json = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      setError(json.error ?? "Could not raise this return.");
-      setBusy(false);
+      setFormError(json.error ?? "Could not raise this return.");
       return;
     }
 
@@ -80,7 +91,7 @@ export function ReturnRequestForm({
     .reduce((sum, item) => sum + (item.lineTotal / item.quantity) * selected[item.id], 0);
 
   return (
-    <form onSubmit={submit} className="space-y-8">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8" noValidate>
       <section className="border border-brand-ivory-deep bg-white p-6">
         <h3 className="mb-4 text-[11px] font-sans font-semibold tracking-luxe uppercase text-black">
           Which pieces are you returning?
@@ -133,6 +144,10 @@ export function ReturnRequestForm({
             );
           })}
         </div>
+
+        {errors.items && (
+          <p className="mt-4 text-xs font-sans text-brand-wine">{errors.items.message}</p>
+        )}
       </section>
 
       <section className="space-y-4 border border-brand-ivory-deep bg-white p-6">
@@ -148,11 +163,9 @@ export function ReturnRequestForm({
             >
               <input
                 type="radio"
-                name="return-reason"
                 value={option}
-                checked={reason === option}
-                onChange={() => setReason(option)}
                 className="accent-brand-gold"
+                {...register("reason")}
               />
               {option}
             </label>
@@ -170,10 +183,12 @@ export function ReturnRequestForm({
             id="return-comment"
             rows={3}
             maxLength={1000}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
             className="w-full border border-brand-ivory-deep bg-white px-4 py-3 text-sm font-sans text-brand-ink placeholder:text-[#a89f92] focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/30"
+            {...register("comment")}
           />
+          {errors.comment && (
+            <p className="text-xs font-sans text-brand-wine">{errors.comment.message}</p>
+          )}
         </div>
       </section>
 
@@ -185,9 +200,9 @@ export function ReturnRequestForm({
         </p>
       )}
 
-      {error && <p className="text-xs font-sans text-brand-wine">{error}</p>}
+      {formError && <p className="text-xs font-sans text-brand-wine">{formError}</p>}
 
-      <Button type="submit" loading={busy}>
+      <Button type="submit" loading={isSubmitting}>
         Submit return request
       </Button>
     </form>

@@ -38,10 +38,17 @@ export async function getCollectionsData(
       }),
     ]);
 
+    // Prisma hands back `Decimal` for every money column, including the
+    // optional compare-at price; the UI wants plain numbers.
     const products: Product[] = rawProducts.map((p) => ({
       ...p,
       basePrice: Number(p.basePrice),
-      skus: p.skus.map((s) => ({ ...s, price: Number(s.price) })),
+      mrp: p.mrp == null ? null : Number(p.mrp),
+      skus: p.skus.map((s) => ({
+        ...s,
+        price: Number(s.price),
+        mrp: s.mrp == null ? null : Number(s.mrp),
+      })),
     }));
     return { collections, products };
   } catch {

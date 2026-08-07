@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "@/components/store/NavBar";
@@ -111,6 +113,10 @@ export default function RootLayout({
             </Suspense>
           </SmoothScrollProvider>
         </Providers>
+        {/* Page views and Core Web Vitals. Both no-op off Vercel, so local dev
+            and any other host are unaffected. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

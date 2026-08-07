@@ -225,11 +225,20 @@ export function ProductGallery({
                       e.stopPropagation();
                       setSelected(i);
                     }}
-                    className={`h-1 rounded-full transition-all ${
-                      i === selected ? "w-5 bg-white" : "w-1.5 bg-white/50"
-                    }`}
+                    // The dot itself stays 4px; vertical padding cancelled by an
+                    // equal negative margin grows the tap target to 44px tall
+                    // without shifting the row. Horizontal growth is capped by
+                    // the gap between dots, so it stays modest to avoid
+                    // overlapping neighbouring targets.
+                    className="flex items-center justify-center px-1 py-5 -my-5"
                     aria-label={`Slide ${i + 1}`}
-                  />
+                  >
+                    <span
+                      className={`block h-1 rounded-full transition-all ${
+                        i === selected ? "w-5 bg-white" : "w-1.5 bg-white/50"
+                      }`}
+                    />
+                  </button>
                 ))}
               </div>
             </>

@@ -171,6 +171,12 @@ model Product {
   slug         String   @unique
   description  String
   basePrice    Decimal  @db.Decimal(10, 2)
+  /// Pre-discount list price. Null means no discount is shown at all — the
+  /// storefront only strikes through a price and renders a % badge when this
+  /// is set. Must always be >= the selling price: a compare-at price below
+  /// what is actually charged is a data error, not a discount, so the product
+  /// schema rejects it rather than advertising a negative saving.
+  mrp          Decimal? @db.Decimal(10, 2)
   collectionId String?
   isVisible    Boolean  @default(true)
   isFeatured   Boolean  @default(false)
@@ -218,6 +224,10 @@ model SKU {
   skuCode   String  @unique
   stock     Int     @default(0)
   price     Decimal @db.Decimal(10, 2)
+  /// Per-variant pre-discount list price, overriding Product.mrp for sizes
+  /// that carry their own. Null means no discount is shown for this variant.
+  /// Must always be >= `price`, for the same reason as Product.mrp.
+  mrp       Decimal? @db.Decimal(10, 2)
   /// Manual kill-switch. A size is also treated as unbuyable whenever
   /// `stock` hits 0 — that part is derived, never stored (see lib/inventory).
   isActive  Boolean @default(true)

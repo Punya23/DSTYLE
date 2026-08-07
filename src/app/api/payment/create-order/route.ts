@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { buildCartQuote } from "@/lib/quote";
 import { redeemCoupon } from "@/lib/coupons";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const addressSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -42,6 +43,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Please sign in to place an order." }, { status: 401 });
   }
   const userId = session.user.id;
+
+  // Each call creates a Razorpay order and a PENDING row. Scoped to the user so
+  // one shopper flooding checkout can't lock out others behind the same NAT.
+  const limited = await enforceRateLimit(req, "payment", userId);
+  if (limited) return limited;
 
   let parsed;
   try {

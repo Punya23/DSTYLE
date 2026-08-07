@@ -22,7 +22,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={id}
           className={cn(
-            "w-full border border-brand-ivory-deep bg-white px-4 py-3 text-sm font-sans text-brand-ink placeholder:text-[#a89f92] transition-[border-color,box-shadow] duration-300 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/30",
+            // 16px on touch, 14px from `sm` up: iOS Safari auto-zooms the page
+            // when a focused input's font-size is under 16px, and that zoom is
+            // never undone — it strands the customer mid-form.
+            "w-full border border-brand-ivory-deep bg-white px-4 py-3 text-base sm:text-sm font-sans text-brand-ink placeholder:text-[#a89f92] transition-[border-color,box-shadow] duration-300 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold/30",
             { "border-brand-wine focus:border-brand-wine focus:ring-brand-wine/25": !!error },
             className
           )}

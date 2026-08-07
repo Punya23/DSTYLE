@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-const bodySchema = z.object({
-  productId: z.string().min(1),
-  rating: z.number().int().min(1, "Pick a rating").max(5),
-  title: z.string().trim().max(120).optional().or(z.literal("")),
-  body: z.string().trim().min(10, "Tell us a little more — at least 10 characters.").max(2000),
-});
+import { reviewSchema as bodySchema } from "@/lib/account-schemas";
 
 /**
  * Create or replace the caller's review of a product.

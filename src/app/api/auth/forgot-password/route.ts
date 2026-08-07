@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hashToken, generateResetToken } from "@/lib/password";
 import { sendPasswordResetEmail } from "@/lib/auth-emails";
 import { appUrl } from "@/lib/app-url";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const RESET_TTL_MS = 60 * 60 * 1000;
 /** Ignore repeat requests inside this window so the inbox can't be flooded. */
@@ -18,6 +19,11 @@ const bodySchema = z.object({
  * exists — otherwise this endpoint becomes an account-enumeration oracle.
  */
 export async function POST(req: NextRequest) {
+  // The per-user cooldown below is keyed on the account, so it does nothing
+  // against a caller cycling through addresses.
+  const limited = await enforceRateLimit(req, "authWrite");
+  if (limited) return limited;
+
   let email: string;
   try {
     email = bodySchema.parse(await req.json()).email;
