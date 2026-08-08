@@ -198,7 +198,7 @@ export function HeroSection({
          phone is wide-and-short — 844x390 crossed into md: and got a 680px
          hero in a 390px viewport, pushing the CTA off screen. Gate the floor
          on viewport height too, so landscape phones just track 100dvh. */
-      className="relative flex min-h-[86dvh] flex-col overflow-hidden bg-brand-ink md:h-[100dvh] md:flex-row [@media(min-width:768px)_and_(min-height:640px)]:min-h-[680px]"
+      className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-brand-ink md:h-[100dvh] md:flex-row [@media(min-width:768px)_and_(min-height:640px)]:min-h-[680px]"
     >
       {/* Media — on mobile it fills the section and the copy is overlaid on
           top of it (stacking image *above* the copy pushed the primary CTA
@@ -240,12 +240,14 @@ export function HeroSection({
           ))}
         </div>
 
-        {/* Cinematic overlays */}
-        <div className="pointer-events-none absolute inset-0 media-scrim opacity-70 md:opacity-40" />
-        {/* Mobile-only reading scrim. The copy is overlaid across the lower
-            half there, and media-scrim alone only reaches ~0.18 opacity that
-            far up — not enough for white text over a pale studio backdrop. */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent md:hidden" />
+        {/* Cinematic overlays. media-scrim is the desktop treatment only — on
+            mobile it stacked with the reading gradient below and the two
+            together muted the photograph into mud. */}
+        <div className="pointer-events-none absolute inset-0 media-scrim opacity-0 md:opacity-40" />
+        {/* Mobile reading scrim. Weighted to the lower two-thirds where the
+            copy actually sits, and deliberately clear above ~72% so the
+            model's face keeps its contrast instead of greying out. */}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(8,6,5,0.94)_0%,rgba(8,6,5,0.84)_28%,rgba(8,6,5,0.70)_48%,rgba(8,6,5,0.28)_68%,rgba(8,6,5,0.04)_82%,transparent_92%)] md:hidden" />
         <div className="pointer-events-none absolute inset-0 media-vignette" />
         <div className="pointer-events-none absolute inset-0 film-grain opacity-[0.1] mix-blend-overlay" />
         {/* Nav-legibility gradient — the header floats transparent over this panel. */}
