@@ -553,6 +553,17 @@ html.lenis body {
   animation: heroDrift 14s ease-in-out infinite alternate;
 }
 
+/* Hero scroll cue. Defined here rather than as an inline arbitrary animation
+   so the reduced-motion block below can switch it off by class like every
+   other animation — an inline `animate-[scrollcue_...]` silently escaped it. */
+@keyframes scrollcue {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(250%); }
+}
+.animate-scrollcue {
+  animation: scrollcue 1.8s ease-in-out infinite;
+}
+
 /* ------------------------------------------------------------------ */
 /* Reduced motion                                                      */
 /* ------------------------------------------------------------------ */
@@ -562,6 +573,7 @@ html.lenis body {
   .animate-hero-zoom,
   .animate-kenburns,
   .animate-hero-drift,
+  .animate-scrollcue,
   .animate-bounce {
     animation: none !important;
   }
@@ -572,6 +584,28 @@ html.lenis body {
   }
   * {
     scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero — landscape phone compaction                                   */
+/* ------------------------------------------------------------------ */
+/* A landscape phone is wide enough to cross the md: width breakpoint but only
+   ~390px tall, so the hero's desktop rhythm (centred copy, generous margins)
+   both collides with the floating header and runs the CTA off screen. Tighten
+   the stack for that shape only — portrait phones and real desktops are
+   untouched. Kept here rather than as four repeated arbitrary variants on the
+   JSX so the rhythm stays adjustable in one place. */
+@media (min-width: 768px) and (max-height: 640px) {
+  [data-site-hero] .hero-eyebrow {
+    margin-bottom: 0.5rem;
+  }
+  [data-site-hero] h1 {
+    margin-bottom: 0.75rem;
+    font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+  }
+  [data-site-hero] .hero-tagline {
+    margin-bottom: 1rem;
   }
 }
 

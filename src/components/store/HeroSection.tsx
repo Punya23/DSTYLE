@@ -182,7 +182,12 @@ export function HeroSection({
     <section
       ref={heroRef}
       data-site-hero
-      className="relative flex min-h-[86dvh] flex-col overflow-hidden bg-brand-ink md:h-[100dvh] md:min-h-[680px] md:flex-row"
+      /* The 680px floor is a desktop guard (it stops the hero collapsing on a
+         short desktop window) but `md:` is a *width* query, and a landscape
+         phone is wide-and-short — 844x390 crossed into md: and got a 680px
+         hero in a 390px viewport, pushing the CTA off screen. Gate the floor
+         on viewport height too, so landscape phones just track 100dvh. */
+      className="relative flex min-h-[86dvh] flex-col overflow-hidden bg-brand-ink md:h-[100dvh] md:flex-row [@media(min-width:768px)_and_(min-height:640px)]:min-h-[680px]"
     >
       {/* Media — on mobile it fills the section and the copy is overlaid on
           top of it (stacking image *above* the copy pushed the primary CTA
@@ -264,13 +269,17 @@ export function HeroSection({
 
       {/* Content — overlaid on the photo and bottom-aligned on mobile so the
           CTA always lands above the fold; a centred column from md up. */}
-      <div className="relative z-10 order-2 flex flex-1 items-end justify-center px-6 pb-12 pt-24 text-center sm:px-10 md:order-1 md:w-[46%] md:items-center md:justify-start md:px-14 md:py-0 md:text-left lg:px-20">
+      {/* The `md:` copy is vertically centred, which is fine at desktop heights
+          where the floating header clears it — but on a landscape phone
+          (844x390) centring puts the headline straight through the nav. Pad
+          the top back off the header on short md+ viewports only. */}
+      <div className="relative z-10 order-2 flex flex-1 items-end justify-center px-6 pb-12 pt-24 text-center sm:px-10 md:order-1 md:w-[46%] md:items-center md:justify-start md:px-14 md:py-0 md:text-left lg:px-20 [@media(min-width:768px)_and_(max-height:640px)]:items-start [@media(min-width:768px)_and_(max-height:640px)]:pt-24">
         <div className="max-w-lg">
           {/* Eyebrow with gold hairline — framed on mobile, left-run on desktop
               where the column itself supplies the left edge. */}
           <div
             ref={eyebrowRef}
-            className="mb-5 flex items-center justify-center gap-4 opacity-0 sm:gap-5 sm:mb-7 md:justify-start"
+            className="hero-eyebrow mb-5 flex items-center justify-center gap-4 opacity-0 sm:gap-5 sm:mb-7 md:justify-start"
           >
             <span className="hidden h-px w-10 gold-rule-solid opacity-70 sm:block lg:w-14" />
             <span className="micro-label text-[10px] text-brand-champagne">{subline}</span>
@@ -289,7 +298,7 @@ export function HeroSection({
 
           <p
             ref={taglineRef}
-            className="mx-auto mb-8 max-w-lg font-sans text-[13px] leading-[1.7] text-white/75 opacity-0 sm:mb-10 sm:text-[14px] md:mx-0"
+            className="hero-tagline mx-auto mb-8 max-w-lg font-sans text-[13px] leading-[1.7] text-white/75 opacity-0 sm:mb-10 sm:text-[14px] md:mx-0"
           >
             {tagline}
           </p>
@@ -321,19 +330,13 @@ export function HeroSection({
               the CTA back toward the fold on a short phone. */}
           <div ref={cueRef} className="mt-10 hidden items-center justify-center gap-3 opacity-0 md:flex md:justify-start">
             <span className="relative block h-10 w-px overflow-hidden bg-white/20">
-              <span className="absolute left-0 top-0 h-4 w-full bg-brand-champagne animate-[scrollcue_1.8s_ease-in-out_infinite]" />
+              <span className="absolute left-0 top-0 h-4 w-full bg-brand-champagne animate-scrollcue" />
             </span>
             <span className="text-[10px] font-sans tracking-luxe uppercase text-brand-champagne/80">Scroll</span>
           </div>
         </div>
       </div>
 
-      <style>{`
-        @keyframes scrollcue {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(250%); }
-        }
-      `}</style>
     </section>
   );
 }
