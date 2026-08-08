@@ -182,15 +182,17 @@ export function HeroSection({
     <section
       ref={heroRef}
       data-site-hero
-      className="relative flex flex-col overflow-hidden bg-brand-ink md:h-[100dvh] md:min-h-[680px] md:flex-row"
+      className="relative flex min-h-[86dvh] flex-col overflow-hidden bg-brand-ink md:h-[100dvh] md:min-h-[680px] md:flex-row"
     >
-      {/* Media panel — every source photo is a portrait studio shot, so this
-          runs as its own column (not a full-bleed background) rather than
-          fight object-cover across a landscape viewport. Full-bleed only
-          collapses back in on mobile, where the viewport is portrait too. */}
+      {/* Media — on mobile it fills the section and the copy is overlaid on
+          top of it (stacking image *above* the copy pushed the primary CTA
+          below the fold on a 375x667 phone, and every peer house overlays
+          instead). From md up the photos are portrait studio shots, so the
+          media becomes its own column rather than fighting object-cover
+          across a landscape viewport. */}
       <div
         ref={mediaRef}
-        className="relative order-1 h-[62dvh] min-h-[420px] w-full overflow-hidden will-change-transform md:order-2 md:h-full md:w-[54%]"
+        className="absolute inset-0 overflow-hidden will-change-transform md:relative md:order-2 md:h-full md:w-[54%]"
       >
         {/* Decorative — the headline/tagline already carry the message, so the
             whole stack is hidden from assistive tech rather than announcing
@@ -220,6 +222,10 @@ export function HeroSection({
 
         {/* Cinematic overlays */}
         <div className="pointer-events-none absolute inset-0 media-scrim opacity-70 md:opacity-40" />
+        {/* Mobile-only reading scrim. The copy is overlaid across the lower
+            half there, and media-scrim alone only reaches ~0.18 opacity that
+            far up — not enough for white text over a pale studio backdrop. */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent md:hidden" />
         <div className="pointer-events-none absolute inset-0 media-vignette" />
         <div className="pointer-events-none absolute inset-0 film-grain opacity-[0.1] mix-blend-overlay" />
         {/* Nav-legibility gradient — the header floats transparent over this panel. */}
@@ -229,18 +235,22 @@ export function HeroSection({
             square/hairline language. Clickable so the rotation is a real
             lookbook, not just passive scenery. */}
         {slides.length > 1 && (
-          <div className="absolute bottom-6 left-6 z-10 flex gap-2 md:bottom-8 md:left-8">
+          // Top-right on mobile (the copy is overlaid across the bottom there,
+          // so bottom-left would sit under it), bottom-left from md up where
+          // the media is its own column.
+          <div className="absolute right-4 top-24 z-10 flex gap-2 md:bottom-8 md:left-8 md:right-auto md:top-auto">
             {slides.map((slide, i) => (
-              // The hairline stays 2px visually; the button itself is padded
-              // out to a real touch target (a bare 2px hit area repeats the
-              // gallery-dot tap-target defect an earlier mobile audit fixed).
+              // The hairline stays 2px visually; the button is padded out to a
+              // full 44px touch target (Apple HIG / Material minimum) — a bare
+              // 2px hit area repeats the gallery-dot tap-target defect an
+              // earlier mobile audit already fixed once.
               <button
                 key={slide.src}
                 type="button"
                 onClick={() => setActiveSlide(i)}
                 aria-label={`Show slide ${i + 1} of ${slides.length}`}
                 aria-current={i === activeSlide}
-                className="group flex h-6 w-8 items-center justify-center"
+                className="group flex h-11 w-10 items-center justify-center md:h-11 md:w-8"
               >
                 <span
                   className="h-[2px] w-full bg-white/30 transition-colors duration-300 group-hover:bg-white/60"
@@ -252,8 +262,9 @@ export function HeroSection({
         )}
       </div>
 
-      {/* Content panel */}
-      <div className="relative z-10 order-2 flex flex-1 items-center justify-center px-6 py-14 text-center sm:px-10 md:order-1 md:w-[46%] md:justify-start md:px-14 md:py-0 md:text-left lg:px-20">
+      {/* Content — overlaid on the photo and bottom-aligned on mobile so the
+          CTA always lands above the fold; a centred column from md up. */}
+      <div className="relative z-10 order-2 flex flex-1 items-end justify-center px-6 pb-12 pt-24 text-center sm:px-10 md:order-1 md:w-[46%] md:items-center md:justify-start md:px-14 md:py-0 md:text-left lg:px-20">
         <div className="max-w-lg">
           {/* Eyebrow with gold hairline — framed on mobile, left-run on desktop
               where the column itself supplies the left edge. */}
@@ -305,7 +316,10 @@ export function HeroSection({
             </MagneticButton>
           </div>
 
-          <div ref={cueRef} className="mt-10 flex items-center justify-center gap-3 opacity-0 md:justify-start">
+          {/* Desktop only — on mobile the copy sits over a full-bleed photo
+              that already reads as scrollable, and the cue's ~80px would push
+              the CTA back toward the fold on a short phone. */}
+          <div ref={cueRef} className="mt-10 hidden items-center justify-center gap-3 opacity-0 md:flex md:justify-start">
             <span className="relative block h-10 w-px overflow-hidden bg-white/20">
               <span className="absolute left-0 top-0 h-4 w-full bg-brand-champagne animate-[scrollcue_1.8s_ease-in-out_infinite]" />
             </span>

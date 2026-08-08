@@ -36,12 +36,15 @@ export default function FaqPage() {
           <span className="mt-8 block h-px w-16 gold-rule-solid opacity-60" />
         </header>
 
-        <nav aria-label="FAQ sections" className="mt-10 flex flex-wrap gap-x-6 gap-y-3">
+        <nav aria-label="FAQ sections" className="mt-10 flex flex-wrap gap-x-6 gap-y-1">
           {FAQ_GROUPS.map((group) => (
             <a
               key={group.title}
               href={`#${groupId(group.title)}`}
-              className="link-reveal font-sans text-[13px] text-brand-ink-soft transition-colors duration-300 hover:text-brand-ink"
+              /* min-h-11 on touch: this is a navigation row, not inline prose,
+                 so each jump link needs the full 44px target. Relaxes to the
+                 tighter editorial rhythm at sm. */
+              className="link-reveal inline-flex min-h-11 items-center font-sans text-[13px] text-brand-ink-soft transition-colors duration-300 hover:text-brand-ink sm:min-h-0"
             >
               {group.title}
             </a>
