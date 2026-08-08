@@ -225,10 +225,14 @@ function Toggle({
           checked ? "bg-brand-ink" : "bg-brand-ivory-deep"
         )}
       >
+        {/* `left-0.5` is load-bearing: without a left anchor an absolutely
+            positioned box falls back to its *static* position (here 20px in),
+            and the checked translate then stacked on top of that — putting the
+            knob outside the 40px track and over the first letter of the label. */}
         <span
           className={cn(
-            "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-            checked ? "translate-x-5" : "translate-x-0.5"
+            "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+            checked ? "translate-x-5" : "translate-x-0"
           )}
         />
       </button>
