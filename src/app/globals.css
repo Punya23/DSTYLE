@@ -576,6 +576,20 @@ html.lenis body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Sticky CTA clearance                                                */
+/* ------------------------------------------------------------------ */
+/* The PDP's mobile purchase bar is `position: fixed`, so it sits over the
+   end of the document and hides the footer's last row outright. Reserve its
+   height (plus the iOS home-indicator inset) on any page that renders one,
+   keyed off the bar's own marker so the two can never drift apart. Scoped to
+   the breakpoint where the bar actually exists — it is `md:hidden`. */
+@media (max-width: 767px) {
+  body:has([data-sticky-cta]) footer {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Product image morph — View Transitions API (card ↔ product page)    */
 /* ------------------------------------------------------------------ */
 ::view-transition-group(.morph) {

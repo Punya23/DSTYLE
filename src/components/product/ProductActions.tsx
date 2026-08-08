@@ -441,7 +441,13 @@ export function ProductMobileBar(props: ProductActionsProps) {
 
   return (
     <>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-brand-ivory/95 backdrop-blur-md border-t border-brand-ivory-deep shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
+      {/* `data-sticky-cta` is what globals.css keys off to give the footer a
+          bottom inset — this bar is fixed, so without that reservation it
+          permanently covers the last ~73px of the document. */}
+      <div
+        data-sticky-cta
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-brand-ivory/95 backdrop-blur-md border-t border-brand-ivory-deep shadow-[0_-4px_24px_rgba(0,0,0,0.08)]"
+      >
         {/* The bar sits on the home-indicator on iOS, so the safe-area inset is
             the floor for its bottom padding. */}
         <div className="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-3">
