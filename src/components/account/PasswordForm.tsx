@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { passwordFormSchemaFor, type PasswordFormInput } from "@/lib/account-schemas";
 
 /**
  * Change (or set, for magic-link/Google accounts) the password.
@@ -11,56 +14,62 @@ import { Input } from "@/components/ui/input";
  */
 export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
   const router = useRouter();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  // Rebuilding the resolver on every render would reset validation state.
+  const schema = useMemo(() => passwordFormSchemaFor(hasPassword), [hasPassword]);
 
-    if (next !== confirm) {
-      setError("The two passwords don't match.");
-      return;
-    }
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<PasswordFormInput>({
+    resolver: zodResolver(schema),
+    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
+  });
 
-    setStatus("saving");
+  async function onSubmit(values: PasswordFormInput) {
+    setFormError(null);
+    setSaved(false);
+
     const res = await fetch("/api/account/password", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        currentPassword: hasPassword ? current : undefined,
-        newPassword: next,
+        // Accounts without a password have nothing to verify against.
+        currentPassword: hasPassword ? values.currentPassword : undefined,
+        newPassword: values.newPassword,
       }),
     });
     const json = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      setError(json.error ?? "Could not update your password.");
-      setStatus("idle");
+      setFormError(json.error ?? "Could not update your password.");
       return;
     }
 
-    setCurrent("");
-    setNext("");
-    setConfirm("");
-    setStatus("saved");
+    setSaved(true);
+    // Never leave a password sitting in a mounted input after a successful save.
+    reset({ currentPassword: "", newPassword: "", confirmPassword: "" });
     router.refresh();
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-md space-y-5 border border-brand-ivory-deep bg-white p-6">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="max-w-md space-y-5 border border-brand-ivory-deep bg-white p-6"
+      noValidate
+    >
       {hasPassword ? (
         <Input
           id="current-password"
           label="Current password"
           type="password"
           autoComplete="current-password"
-          value={current}
-          onChange={(e) => setCurrent(e.target.value)}
-          required
+          error={errors.currentPassword?.message}
+          {...register("currentPassword")}
         />
       ) : (
         <p className="text-[12px] font-sans text-[#888888]">
@@ -73,9 +82,8 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
         label={hasPassword ? "New password" : "Password"}
         type="password"
         autoComplete="new-password"
-        value={next}
-        onChange={(e) => setNext(e.target.value)}
-        required
+        error={errors.newPassword?.message}
+        {...register("newPassword")}
       />
 
       <Input
@@ -83,19 +91,18 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
         label="Confirm password"
         type="password"
         autoComplete="new-password"
-        value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
-        required
+        error={errors.confirmPassword?.message}
+        {...register("confirmPassword")}
       />
 
-      {error && <p className="text-xs font-sans text-brand-wine">{error}</p>}
-      {status === "saved" && !error && (
+      {formError && <p className="text-xs font-sans text-brand-wine">{formError}</p>}
+      {saved && !formError && (
         <p className="text-xs font-sans text-brand-gold">
           Password {hasPassword ? "updated" : "set"}.
         </p>
       )}
 
-      <Button type="submit" loading={status === "saving"} size="sm" variant="outline">
+      <Button type="submit" loading={isSubmitting} size="sm" variant="outline">
         {hasPassword ? "Update password" : "Set password"}
       </Button>
     </form>

@@ -31,6 +31,99 @@ export const couponSchema = z.object({
 
 export type CouponInput = z.infer<typeof couponSchema>;
 
+/* -------------------------------------------------------------------------- */
+/* Admin form                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The admin form holds every numeric field as a string — a half-typed number
+ * input has no numeric value, and `datetime-local` speaks its own format. This
+ * schema validates that string shape and produces a `CouponInput` the API
+ * accepts, so the form and the endpoint still share one definition of "valid".
+ */
+
+/** "" means "not set"; anything else must parse as a non-negative number. */
+const optionalNumberString = (label: string) =>
+  z
+    .string()
+    .trim()
+    .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), {
+      message: `${label} must be a positive number`,
+    });
+
+export const couponFormSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .min(3, "Code must be at least 3 characters")
+      .max(40)
+      .regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, hyphen or underscore only"),
+    description: z.string().trim().max(160),
+    type: z.enum(["PERCENT", "FIXED", "FREE_SHIPPING", "BUY_X_GET_Y"]),
+    value: optionalNumberString("Discount"),
+    maxDiscount: optionalNumberString("Max discount"),
+    minOrder: optionalNumberString("Minimum order"),
+    buyQty: optionalNumberString("Buy quantity"),
+    getQty: optionalNumberString("Free quantity"),
+    startsAt: z.string(),
+    expiresAt: z.string(),
+    usageLimit: optionalNumberString("Total uses"),
+    perUserLimit: optionalNumberString("Uses per customer"),
+    isActive: z.boolean(),
+    firstOrderOnly: z.boolean(),
+  })
+  // The same cross-field rules `validateCouponRules` enforces server-side, but
+  // attached to the field that's actually wrong so the message lands there.
+  .refine(
+    (v) => v.type !== "PERCENT" || (Number(v.value) > 0 && Number(v.value) <= 100),
+    { message: "A percentage discount must be between 1 and 100.", path: ["value"] }
+  )
+  .refine((v) => v.type !== "FIXED" || Number(v.value) > 0, {
+    message: "Enter the rupee amount to take off.",
+    path: ["value"],
+  })
+  .refine((v) => v.type !== "BUY_X_GET_Y" || Number(v.buyQty) > 0, {
+    message: "Set the buy quantity.",
+    path: ["buyQty"],
+  })
+  .refine((v) => v.type !== "BUY_X_GET_Y" || Number(v.getQty) > 0, {
+    message: "Set the free quantity.",
+    path: ["getQty"],
+  })
+  .refine(
+    (v) => !v.startsAt || !v.expiresAt || new Date(v.startsAt) < new Date(v.expiresAt),
+    { message: "The expiry date must be after the start date.", path: ["expiresAt"] }
+  );
+
+export type CouponFormInput = z.infer<typeof couponFormSchema>;
+
+/** Turn the validated string form into the payload the API expects. */
+export function couponFormToPayload(form: CouponFormInput) {
+  const numberOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
+  const isoOrNull = (v: string) => (v ? new Date(v).toISOString() : null);
+
+  return {
+    code: form.code.trim().toUpperCase(),
+    description: form.description.trim() || null,
+    type: form.type,
+    // Only the two amount-based types carry a value; the rest send 0.
+    value: form.type === "PERCENT" || form.type === "FIXED" ? Number(form.value || 0) : 0,
+    maxDiscount: form.type === "PERCENT" ? numberOrNull(form.maxDiscount) : null,
+    minOrder: numberOrNull(form.minOrder),
+    buyQty: form.type === "BUY_X_GET_Y" ? numberOrNull(form.buyQty) : null,
+    getQty: form.type === "BUY_X_GET_Y" ? numberOrNull(form.getQty) : null,
+    startsAt: isoOrNull(form.startsAt),
+    expiresAt: isoOrNull(form.expiresAt),
+    usageLimit: numberOrNull(form.usageLimit),
+    perUserLimit: numberOrNull(form.perUserLimit),
+    isActive: form.isActive,
+    firstOrderOnly: form.firstOrderOnly,
+    collectionIds: [],
+    productIds: [],
+  };
+}
+
 /** Cross-field rules the shape alone can't express. */
 export function validateCouponRules(data: CouponInput): string | null {
   if (data.type === "PERCENT" && (data.value <= 0 || data.value > 100)) {

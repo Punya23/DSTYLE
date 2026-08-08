@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Heart, Sparkles } from "lucide-react";
+import { Bookmark, Heart, Minus, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { SizeGuide } from "@/components/product/SizeGuide";
 import { useCartStore } from "@/store/cart";
 import { useUIStore } from "@/store/ui";
 import { useWishlist } from "@/hooks/useWishlist";
 import { availabilityFor, fromPrice, isSoldOut } from "@/lib/inventory";
+import { discountPercent } from "@/lib/pricing";
 import { formatPrice, cn } from "@/lib/utils";
 import type { SKU, ProductImage } from "@/types";
 
@@ -25,6 +27,15 @@ interface ProductActionsProps {
   isActive?: boolean;
   /** Free-text dispatch promise from the product record. */
   deliveryTime?: string | null;
+  /** Product.mrp — the compare-at price. Null means no discount is shown. */
+  mrp?: number | null;
+  /** StoreSetting.freeShippingThreshold, for the footnote under the buttons. */
+  freeShippingThreshold: number;
+  /**
+   * Render the price inside this panel. The desktop PDP prints its own price
+   * row under the title, so only the mobile purchase sheet asks for one.
+   */
+  showPrice?: boolean;
 }
 
 export function ProductActions({
@@ -35,13 +46,21 @@ export function ProductActions({
   skus,
   isActive = true,
   deliveryTime,
+  mrp,
+  freeShippingThreshold,
+  showPrice = false,
 }: ProductActionsProps) {
   const router = useRouter();
+  // The desktop panel and the mobile sheet are both mounted at once, so every
+  // id in here has to be instance-scoped.
+  const uid = useId();
   const [selectedSize, setSelectedSize] = useState("");
+  const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState("");
   const [added, setAdded] = useState(false);
   const [savedNote, setSavedNote] = useState(false);
   const [appointmentOpen, setAppointmentOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const { addItem, openCart, saveForLater } = useCartStore();
   const openStylistWith = useUIStore((s) => s.openStylistWith);
@@ -55,6 +74,16 @@ export function ProductActions({
   const minPrice = fromPrice(skus);
   const wishlisted = isWishlisted(productId);
 
+  // The stepper can never offer more than the chosen variant physically has.
+  // With nothing chosen yet there is no stock figure to trust, so it stays at 1.
+  const maxQuantity = selected?.available ? Math.max(1, selected.stock) : 1;
+  const priceEach = selected ? selected.price : minPrice;
+  // A variant's own compare-at price wins over the product's, when it has one.
+  // `SizeAvailability` doesn't carry it, so it comes off the SKU row itself.
+  const compareAt = (selected ? skus.find((s) => s.id === selected.skuId)?.mrp : null) ?? mrp ?? null;
+  const savedPercent = discountPercent(priceEach, compareAt);
+  const hasPriceRange = new Set(skus.map((s) => s.price)).size > 1;
+
   const buildCartItem = () => {
     if (!selected) return null;
     return {
@@ -66,7 +95,7 @@ export function ProductActions({
       size: selected.size,
       color: selected.color,
       price: selected.price,
-      quantity: 1,
+      quantity: Math.min(Math.max(1, quantity), Math.max(1, selected.stock)),
       stock: selected.stock,
     };
   };
@@ -141,17 +170,29 @@ export function ProductActions({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="font-display text-3xl sm:text-4xl text-black">
-          {selected ? formatPrice(selected.price) : formatPrice(minPrice)}
-          {!selected && skus.length > 1 && (
-            <span className="font-sans text-sm text-[#888888] ml-2">onwards</span>
+      {showPrice && (
+        // Wraps rather than overflows: at 320px a six-figure price, its
+        // compare-at and the saving chip do not fit on one line.
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+          <span className="font-display text-[1.75rem] sm:text-[2rem] leading-none text-brand-ink tabular-nums">
+            {formatPrice(priceEach)}
+          </span>
+          {savedPercent != null && compareAt != null && (
+            <>
+              <span className="price-was font-sans text-[13px] tabular-nums">
+                {formatPrice(compareAt)}
+              </span>
+              <span className="badge badge-sale">{savedPercent}% OFF</span>
+            </>
           )}
-        </p>
-      </div>
+          {!selected && hasPriceRange && (
+            <span className="font-sans text-[12px] text-brand-grey-dark">onwards</span>
+          )}
+        </div>
+      )}
 
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between gap-3 mb-3">
           <span className="text-[11px] font-sans font-semibold tracking-luxe uppercase text-black">
             Select Size
             {selectedSize && (
@@ -162,9 +203,10 @@ export function ProductActions({
           </span>
           <button
             type="button"
-            className="text-[11px] font-sans text-[#888888] hover:text-black transition-colors underline underline-offset-2 min-h-[44px] px-1"
+            onClick={() => setGuideOpen(true)}
+            className="shrink-0 -mr-2 inline-flex items-center min-h-[44px] px-2 text-[11px] font-sans text-[#888888] hover:text-black transition-colors underline underline-offset-2"
           >
-            Size Guide
+            Size guide
           </button>
         </div>
 
@@ -177,6 +219,9 @@ export function ProductActions({
               aria-disabled={!size.available}
               onClick={() => {
                 setSelectedSize(size.size);
+                // A new variant carries its own stock, so the count starts over
+                // rather than silently exceeding what this size actually has.
+                setQuantity(1);
                 setError("");
               }}
               className={cn(
@@ -209,6 +254,47 @@ export function ProductActions({
           </p>
         )}
       </div>
+
+      {isActive && !soldOut && (
+        <div>
+          <p
+            id={`${uid}-qty-label`}
+            className="text-[11px] font-sans font-semibold tracking-luxe uppercase text-black mb-3"
+          >
+            Quantity
+          </p>
+          <div
+            role="group"
+            aria-labelledby={`${uid}-qty-label`}
+            className="inline-flex items-center border border-brand-ivory-deep"
+          >
+            <button
+              type="button"
+              aria-label="Decrease quantity"
+              disabled={quantity <= 1}
+              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+              className="grid h-12 w-12 place-items-center text-brand-ink transition-colors duration-300 hover:text-brand-gold-deep disabled:opacity-30 disabled:hover:text-brand-ink disabled:cursor-not-allowed"
+            >
+              <Minus size={15} strokeWidth={1.5} />
+            </button>
+            <span
+              aria-live="polite"
+              className="min-w-[3rem] px-1 text-center font-sans text-[14px] tabular-nums text-brand-ink"
+            >
+              {quantity}
+            </span>
+            <button
+              type="button"
+              aria-label="Increase quantity"
+              disabled={quantity >= maxQuantity}
+              onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
+              className="grid h-12 w-12 place-items-center text-brand-ink transition-colors duration-300 hover:text-brand-gold-deep disabled:opacity-30 disabled:hover:text-brand-ink disabled:cursor-not-allowed"
+            >
+              <Plus size={15} strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-[12px] font-sans text-brand-wine">{error}</p>}
 
@@ -289,15 +375,27 @@ export function ProductActions({
             `How should I style the ${productName}? What accessories or occasions would suit it?`
           )
         }
-        className="w-full flex items-center justify-center gap-2 py-1 text-[11px] font-sans tracking-luxe uppercase text-brand-gold hover:text-brand-gold-deep transition-colors"
+        className="w-full flex min-h-11 items-center justify-center gap-2 py-1 text-[11px] font-sans tracking-luxe uppercase text-brand-gold hover:text-brand-gold-deep transition-colors"
       >
         <Sparkles size={13} />
         Ask the Stylist about this piece
       </button>
 
+      {/* Both halves come from real records — the store's shipping threshold and
+          the garment's own dispatch note. With no dispatch note recorded the
+          line simply says less rather than promising a lead time. */}
       <p className="text-[11px] font-sans text-[#888888] text-center leading-relaxed">
-        Free shipping above ₹5,000 · {deliveryTime || "Couture may require 2–4 weeks"}
+        {freeShippingThreshold > 0
+          ? `Complimentary shipping above ${formatPrice(freeShippingThreshold)}`
+          : "Complimentary shipping"}
+        {deliveryTime?.trim() ? ` · ${deliveryTime.trim()}` : ""}
       </p>
+
+      <SizeGuide
+        open={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        availableSizes={sizes.map((s) => s.size)}
+      />
 
       <Modal
         open={appointmentOpen}
@@ -339,17 +437,21 @@ export function ProductActions({
 export function ProductMobileBar(props: ProductActionsProps) {
   const [open, setOpen] = useState(false);
   const minPrice = fromPrice(props.skus);
+  const hasPriceRange = new Set(props.skus.map((s) => s.price)).size > 1;
 
   return (
     <>
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-brand-ivory/95 backdrop-blur-md border-t border-brand-ivory-deep shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
+        {/* The bar sits on the home-indicator on iOS, so the safe-area inset is
+            the floor for its bottom padding. */}
         <div className="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="font-display text-base text-black truncate leading-tight">
+            <p className="font-sans text-[13px] font-medium text-brand-ink truncate leading-tight">
               {props.productName}
             </p>
-            <p className="font-sans text-[12px] text-[#888888] mt-0.5">
-              {formatPrice(minPrice)} onwards
+            <p className="font-sans text-[12px] text-[#888888] mt-0.5 tabular-nums">
+              {formatPrice(minPrice)}
+              {hasPriceRange ? " onwards" : ""}
             </p>
           </div>
           <Button className="shrink-0 min-h-[48px] px-5 text-[10px]" onClick={() => setOpen(true)}>
@@ -359,7 +461,9 @@ export function ProductMobileBar(props: ProductActionsProps) {
       </div>
 
       <Modal open={open} onClose={() => setOpen(false)} title={props.productName} size="md">
-        <ProductActions {...props} />
+        {/* The sheet is the only purchase surface on mobile, so it carries the
+            price itself — the desktop panel gets it from the page instead. */}
+        <ProductActions {...props} showPrice />
       </Modal>
     </>
   );

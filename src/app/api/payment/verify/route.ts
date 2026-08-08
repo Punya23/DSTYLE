@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { verifyPaymentSignature } from "@/lib/razorpay";
 import { confirmPaidOrder } from "@/lib/orders";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
   razorpay_order_id: z.string(),
@@ -22,6 +23,11 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Signature forgery is infeasible, but grinding attempts still costs us HMAC
+  // work and a DB round trip each.
+  const limited = await enforceRateLimit(req, "payment", session.user.id);
+  if (limited) return limited;
 
   let data;
   try {

@@ -2,16 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-const bodySchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^[0-9+\-\s()]{7,20}$/, "Enter a valid phone number")
-    .optional()
-    .or(z.literal("")),
-});
+import { profileSchema as bodySchema } from "@/lib/account-schemas";
 
 /** Update the signed-in user's display name and contact number. */
 export async function PUT(req: NextRequest) {

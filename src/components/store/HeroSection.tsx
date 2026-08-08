@@ -137,19 +137,18 @@ export function HeroSection({
         {/* Eyebrow with gold hairlines */}
         <div
           ref={eyebrowRef}
-          className="opacity-0 flex items-center justify-center gap-4 sm:gap-5 mb-6 sm:mb-8"
+          className="opacity-0 flex items-center justify-center gap-4 sm:gap-5 mb-5 sm:mb-7"
         >
           <span className="hidden sm:block h-px w-10 lg:w-16 gold-rule-solid opacity-70" />
-          <span className="text-[9px] sm:text-[11px] font-sans font-medium tracking-[0.2em] sm:tracking-luxe uppercase text-brand-champagne">
-            {subline}
-          </span>
+          <span className="micro-label text-[10px] text-brand-champagne">{subline}</span>
           <span className="hidden sm:block h-px w-10 lg:w-16 gold-rule-solid opacity-70" />
         </div>
 
-        {/* Headline */}
+        {/* Headline — the hero is one of only two places italic display type is
+            still allowed; everything downstream of it is upright. */}
         <h1
           ref={headlineRef}
-          className="font-display italic text-white text-balance text-[2.6rem] leading-[1.02] sm:text-6xl md:text-7xl lg:text-8xl xl:text-[8.5rem] mb-7 sm:mb-9"
+          className="display-1 italic text-white text-balance mb-6 sm:mb-8"
           style={{ perspective: "1000px", textShadow: "0 2px 40px rgba(0,0,0,0.35)" }}
         >
           {chars}
@@ -158,12 +157,13 @@ export function HeroSection({
         {/* Supporting tagline */}
         <p
           ref={taglineRef}
-          className="opacity-0 max-w-xl mx-auto text-white/75 font-sans font-light text-[13px] sm:text-[15px] leading-relaxed tracking-wide mb-9 sm:mb-11"
+          className="opacity-0 max-w-lg mx-auto text-white/75 font-sans text-[13px] sm:text-[14px] leading-[1.7] mb-8 sm:mb-10"
         >
           {tagline}
         </p>
 
-        {/* CTAs */}
+        {/* CTAs — square, flat, no gold fill. The hero is a dark surface, so the
+            primary is the inverted (white-fill) button rather than ink-on-ink. */}
         <div
           ref={ctaRef}
           className="opacity-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 w-full max-w-[340px] sm:max-w-none mx-auto"
@@ -171,7 +171,7 @@ export function HeroSection({
           <MagneticButton className="w-full sm:w-auto">
             <Link
               href="/collections"
-              className="flex items-center justify-center w-full sm:w-auto min-h-[54px] px-10 bg-brand-champagne text-brand-ink text-[11px] font-sans font-semibold tracking-luxe uppercase transition-colors duration-300 hover:bg-white"
+              className="btn-invert w-full min-h-[52px] px-10 sm:w-auto"
             >
               Explore Collections
             </Link>
@@ -179,10 +179,9 @@ export function HeroSection({
           <MagneticButton className="w-full sm:w-auto">
             <Link
               href="/about"
-              className="group flex items-center justify-center gap-2.5 w-full sm:w-auto min-h-[54px] px-10 bg-white/10 backdrop-blur-md text-white text-[11px] font-sans font-medium tracking-luxe uppercase transition-colors duration-300 hover:bg-white hover:text-brand-ink"
+              className="btn-secondary w-full min-h-[52px] border-white/70 px-10 text-white hover:bg-white hover:text-brand-ink sm:w-auto"
             >
               Our Story
-              <span className="h-px w-5 bg-current transition-all duration-300 group-hover:w-8" />
             </Link>
           </MagneticButton>
         </div>
@@ -193,7 +192,7 @@ export function HeroSection({
         ref={scrollCueRef}
         className="opacity-0 absolute bottom-7 sm:bottom-9 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
       >
-        <span className="text-[9px] font-sans tracking-luxe uppercase text-brand-champagne/80">Scroll</span>
+        <span className="text-[10px] font-sans tracking-luxe uppercase text-brand-champagne/80">Scroll</span>
         <span className="relative block h-10 w-px bg-white/20 overflow-hidden">
           <span className="absolute top-0 left-0 h-4 w-full bg-brand-champagne animate-[scrollcue_1.8s_ease-in-out_infinite]" />
         </span>

@@ -109,6 +109,18 @@ export function round2(n: number): number {
 }
 
 /**
+ * Saving to advertise against a compare-at price, in whole percent.
+ *
+ * Null whenever there is nothing honest to show — no MRP recorded, or one that
+ * doesn't actually beat the selling price — so a caller can gate the whole
+ * badge on a single non-null check.
+ */
+export function discountPercent(price: number, mrp?: number | null): number | null {
+  if (mrp == null || mrp <= price) return null;
+  return Math.round(((mrp - price) / mrp) * 100);
+}
+
+/**
  * GST rate for a single line, in percent. Product override beats the slab;
  * an exempt product or a store with GST switched off is always 0.
  */

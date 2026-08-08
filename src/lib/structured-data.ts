@@ -8,6 +8,7 @@ import {
   TRANSIT_DAYS,
 } from "@/lib/shipping";
 import { RETURN_WINDOW_DAYS } from "@/lib/account";
+import { COMPANY } from "@/lib/company";
 
 /**
  * JSON-LD builders. Everything here mirrors what the site actually does —
@@ -33,6 +34,53 @@ export function organizationSchema(): Json {
     },
     description: SITE.description,
     sameAs: [...SITE.sameAs],
+    // A verifiable postal address and a reachable support line are what
+    // separate a merchant Google will surface from an anonymous storefront.
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: [COMPANY.address.line1, COMPANY.address.line2].join(", "),
+      addressLocality: COMPANY.address.city,
+      addressRegion: COMPANY.address.state,
+      postalCode: COMPANY.address.postalCode,
+      addressCountry: COMPANY.address.countryCode,
+    },
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      telephone: COMPANY.phone,
+      email: COMPANY.supportEmail,
+      areaServed: COMPANY.address.countryCode,
+      availableLanguage: ["en", "hi"],
+    },
+  };
+}
+
+/**
+ * FAQPage schema. Google only renders the rich result when the answers are
+ * plain text that matches what a visitor can actually read on the page, so the
+ * same strings feed both.
+ */
+export function faqSchema(faqs: readonly { question: string; answer: string }[], path: string): Json {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${absoluteUrl(path)}#faq`,
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.question,
+      acceptedAnswer: { "@type": "Answer", text: f.answer },
+    })),
+  };
+}
+
+/** Contact page marker, tied back to the publisher identity. */
+export function contactPageSchema(path: string): Json {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    url: absoluteUrl(path),
+    isPartOf: { "@id": `${absoluteUrl("/")}#website` },
+    about: { "@id": `${absoluteUrl("/")}#organization` },
   };
 }
 

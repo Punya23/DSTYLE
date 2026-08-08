@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* Minimal typings for the Web Speech API (not in lib.dom for all targets). */
 type SpeechRecognitionResultLike = { 0: { transcript: string }; isFinal: boolean };
@@ -26,6 +26,20 @@ type Options = {
   onFinal?: (text: string) => void;
 };
 
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+function getRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition || w.webkitSpeechRecognition;
+}
+
+const subscribeNoop = () => () => {};
+const getSupportedSnapshot = () => Boolean(getRecognitionCtor());
+const getServerSupportedSnapshot = () => false;
+
 /**
  * Speech-to-text via the browser's built-in Web Speech API. No API key, no
  * server, no audio leaves the concierge flow — the recognized text is handed
@@ -34,20 +48,17 @@ type Options = {
  */
 export function useSpeechRecognition({ lang = "en-IN", onInterim, onFinal }: Options = {}) {
   const [listening, setListening] = useState(false);
-  const [supported, setSupported] = useState(false);
+  const supported = useSyncExternalStore(subscribeNoop, getSupportedSnapshot, getServerSupportedSnapshot);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const cbRef = useRef({ onInterim, onFinal });
-  cbRef.current = { onInterim, onFinal };
 
   useEffect(() => {
-    const Ctor =
-      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
-    if (!Ctor) {
-      setSupported(false);
-      return;
-    }
-    setSupported(true);
+    cbRef.current = { onInterim, onFinal };
+  });
+
+  useEffect(() => {
+    const Ctor = getRecognitionCtor();
+    if (!Ctor) return;
     const rec = new Ctor();
     rec.lang = lang;
     rec.continuous = false;

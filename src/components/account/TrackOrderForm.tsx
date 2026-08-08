@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { OrderStatus } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { OrderTimeline } from "@/components/account/OrderTimeline";
 import { ORDER_STATUS_VARIANT, formatDate, type TimelineStep } from "@/lib/account";
+import { trackOrderSchema, type TrackOrderInput } from "@/lib/account-schemas";
 
 interface TrackedOrder {
   reference: string;
@@ -24,28 +27,31 @@ interface TrackedOrder {
  * is the point — the email is what proves the order is yours.
  */
 export function TrackOrderForm({ defaultEmail = "" }: { defaultEmail?: string }) {
-  const [reference, setReference] = useState("");
-  const [email, setEmail] = useState(defaultEmail);
   const [order, setOrder] = useState<TrackedOrder | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<TrackOrderInput>({
+    resolver: zodResolver(trackOrderSchema),
+    defaultValues: { reference: "", email: defaultEmail },
+  });
+
+  async function onSubmit(values: TrackOrderInput) {
+    setFormError(null);
     setOrder(null);
 
     const res = await fetch("/api/orders/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reference, email }),
+      body: JSON.stringify(values),
     });
     const json = await res.json().catch(() => ({}));
-    setBusy(false);
 
     if (!res.ok) {
-      setError(json.error ?? "Could not look up that order.");
+      setFormError(json.error ?? "Could not look up that order.");
       return;
     }
 
@@ -58,29 +64,28 @@ export function TrackOrderForm({ defaultEmail = "" }: { defaultEmail?: string })
   return (
     <div className="space-y-8">
       <form
-        onSubmit={submit}
+        onSubmit={handleSubmit(onSubmit)}
         className="max-w-md space-y-4 border border-brand-ivory-deep bg-white p-6"
+        noValidate
       >
         <Input
           id="track-reference"
           label="Order reference"
           placeholder="#4F2A9C10"
-          value={reference}
-          onChange={(e) => setReference(e.target.value)}
-          required
+          error={errors.reference?.message}
+          {...register("reference")}
         />
         <Input
           id="track-email"
           label="Email on the order"
           type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
+          error={errors.email?.message}
+          {...register("email")}
         />
 
-        {error && <p className="text-xs font-sans text-brand-wine">{error}</p>}
+        {formError && <p className="text-xs font-sans text-brand-wine">{formError}</p>}
 
-        <Button type="submit" size="sm" loading={busy}>
+        <Button type="submit" size="sm" loading={isSubmitting}>
           Track order
         </Button>
       </form>

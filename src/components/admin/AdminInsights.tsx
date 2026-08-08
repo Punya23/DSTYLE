@@ -19,9 +19,7 @@ export function AdminInsights() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(false);
+  const request = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/insights", { cache: "no-store" });
       if (!res.ok) throw new Error("failed");
@@ -33,9 +31,32 @@ export function AdminInsights() {
     }
   }, []);
 
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(false);
+    void request();
+  }, [request]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    fetch("/api/admin/insights", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error("failed");
+        return res.json() as Promise<Payload>;
+      })
+      .then((json) => {
+        if (!cancelled) setData(json);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="bg-brand-ink text-white border border-brand-ink p-5 lg:p-6 mb-6 relative overflow-hidden">

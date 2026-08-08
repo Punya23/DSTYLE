@@ -171,6 +171,12 @@ model Product {
   slug         String   @unique
   description  String
   basePrice    Decimal  @db.Decimal(10, 2)
+  /// Pre-discount list price. Null means no discount is shown at all — the
+  /// storefront only strikes through a price and renders a % badge when this
+  /// is set. Must always be >= the selling price: a compare-at price below
+  /// what is actually charged is a data error, not a discount, so the product
+  /// schema rejects it rather than advertising a negative saving.
+  mrp          Decimal? @db.Decimal(10, 2)
   collectionId String?
   isVisible    Boolean  @default(true)
   isFeatured   Boolean  @default(false)
@@ -211,21 +217,25 @@ model Product {
 }
 
 model SKU {
-  id        String  @id @default(cuid())
-  productId String
-  size      String
-  color     String?
-  skuCode   String  @unique
-  stock     Int     @default(0)
-  price     Decimal @db.Decimal(10, 2)
+  id         String   @id @default(cuid())
+  productId  String
+  size       String
+  color      String?
+  skuCode    String   @unique
+  stock      Int      @default(0)
+  price      Decimal  @db.Decimal(10, 2)
+  /// Per-variant pre-discount list price, overriding Product.mrp for sizes
+  /// that carry their own. Null means no discount is shown for this variant.
+  /// Must always be >= `price`, for the same reason as Product.mrp.
+  mrp        Decimal? @db.Decimal(10, 2)
   /// Manual kill-switch. A size is also treated as unbuyable whenever
   /// `stock` hits 0 — that part is derived, never stored (see lib/inventory).
-  isActive  Boolean @default(true)
+  isActive   Boolean  @default(true)
   /// Stock level at or below which the size is flagged "low" in admin + PDP.
-  lowStockAt Int    @default(3)
-  sortOrder  Int    @default(0)
+  lowStockAt Int      @default(3)
+  sortOrder  Int      @default(0)
 
-  product    Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
   cartItems  CartItem[]
   orderItems OrderItem[]
   savedItems SavedItem[]
@@ -323,7 +333,7 @@ model Order {
   couponCode    String?
 
   addressId         String
-  razorpayOrderId   String?     @unique
+  razorpayOrderId   String?   @unique
   razorpayPaymentId String?
   paymentMethod     String?
   notes             String?
@@ -333,8 +343,8 @@ model Order {
   shippedAt         DateTime?
   deliveredAt       DateTime?
   cancelledAt       DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user        User               @relation(fields: [userId], references: [id])
   items       OrderItem[]
@@ -388,16 +398,16 @@ model Coupon {
   buyQty Int?
   getQty Int?
 
-  startsAt  DateTime?
-  expiresAt DateTime?
+  startsAt       DateTime?
+  expiresAt      DateTime?
   /// Total redemptions allowed across all customers. Null = unlimited.
-  usageLimit   Int?
+  usageLimit     Int?
   /// Redemptions allowed per customer. Null = unlimited.
-  perUserLimit Int?    @default(1)
-  usageCount   Int     @default(0)
-  isActive     Boolean @default(true)
+  perUserLimit   Int?      @default(1)
+  usageCount     Int       @default(0)
+  isActive       Boolean   @default(true)
   /// Only redeemable on a customer's first order.
-  firstOrderOnly Boolean @default(false)
+  firstOrderOnly Boolean   @default(false)
 
   /// Restrict eligibility. Both empty = the whole catalogue qualifies.
   collectionIds String[]
@@ -564,4 +574,26 @@ model OtpToken {
   createdAt DateTime @default(now())
 
   @@index([phone])
+}
+
+/// Marketing email list. Kept separate from `User` because most subscribers
+/// never create an account, and an account holder unsubscribing must not lose
+/// their transactional email.
+model NewsletterSubscriber {
+  id    String @id @default(cuid())
+  /// Stored lowercase — the schema normalises before it reaches Prisma.
+  email String @unique
+
+  /// Where the signup came from ("footer", "checkout", …), for attribution.
+  source           String    @default("footer")
+  /// Null while subscribed. Set on unsubscribe rather than deleting the row, so
+  /// a re-subscribe is a resurrection and a suppression list still exists.
+  unsubscribedAt   DateTime?
+  /// Opaque token in the one-click unsubscribe link.
+  unsubscribeToken String    @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unsubscribedAt])
 }

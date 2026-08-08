@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS, buildTimeline, orderRef } from "@/lib/account";
-
-const bodySchema = z.object({
-  reference: z.string().trim().min(4).max(40),
-  email: z.string().trim().email("Enter the email used on the order"),
-});
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { trackOrderSchema as bodySchema } from "@/lib/account-schemas";
 
 /**
  * Guest order tracking. Knowing an order reference isn't enough — the email on
@@ -14,6 +11,10 @@ const bodySchema = z.object({
  * response carries only shipping progress: no addresses, no payment ids.
  */
 export async function POST(req: NextRequest) {
+  // Unauthenticated reference+email lookup — cap it so the pair can't be ground out.
+  const limited = await enforceRateLimit(req, "authWrite");
+  if (limited) return limited;
+
   let data;
   try {
     data = bodySchema.parse(await req.json());

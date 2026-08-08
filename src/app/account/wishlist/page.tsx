@@ -36,8 +36,8 @@ export default async function WishlistPage() {
         />
       ) : (
         <div className="grid grid-cols-2 gap-x-4 gap-y-10 lg:grid-cols-3">
-          {products.map((product, index) => (
-            <ProductCard key={product.id} product={product} index={index} compact />
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product} compact />
           ))}
         </div>
       )}

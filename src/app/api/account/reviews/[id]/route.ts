@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+/** Ids are cuids; anything else can't match a row, so reject it before querying. */
+const paramsSchema = z.object({ id: z.string().cuid() });
 
 /** Delete one of the caller's own reviews. */
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -9,7 +13,11 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     return NextResponse.json({ error: "Please sign in." }, { status: 401 });
   }
 
-  const { id } = await ctx.params;
+  const parsed = paramsSchema.safeParse(await ctx.params);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Review not found." }, { status: 404 });
+  }
+  const { id } = parsed.data;
 
   // deleteMany (not delete) so the ownership filter is part of the statement —
   // a review id alone can never delete someone else's review.

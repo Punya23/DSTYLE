@@ -4,10 +4,16 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema, productScalars } from "@/lib/product-schema";
+import { invalidate } from "@/lib/cache";
 
-function refreshStorefront() {
+async function refreshStorefront() {
   revalidatePath("/");
   revalidatePath("/collections");
+  // `revalidatePath` only clears this deployment's rendered pages. The shared
+  // Redis copy of /api/products has to be dropped separately or the client-side
+  // catalogue keeps serving the pre-edit rows for the rest of its TTL.
+  await invalidate("products");
+  await invalidate("collections");
 }
 
 function isAdmin(role: string | undefined) {
@@ -127,7 +133,7 @@ export async function PUT(
       }
     });
 
-    refreshStorefront();
+    await refreshStorefront();
     return NextResponse.json({ success: true });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -161,7 +167,7 @@ export async function DELETE(
       where: { id },
       data: { isVisible: false },
     });
-    refreshStorefront();
+    await refreshStorefront();
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Failed to delete product" }, { status: 500 });

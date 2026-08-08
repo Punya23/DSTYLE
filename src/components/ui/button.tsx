@@ -76,7 +76,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           variant === "ghost" && "hover:underline underline-offset-4 decoration-brand-gold/60",
           variant === "primary" && "hover:shadow-[0_10px_30px_-12px_rgba(11,10,9,0.55)]",
           {
-            "px-5 py-2.5 text-[10px]": size === "sm",
+            // min-h-11 keeps the small variant on the 44px touch minimum; its
+            // padding alone only reaches ~39px. `md` and `lg` already clear it.
+            "px-5 py-2.5 text-[10px] min-h-11": size === "sm",
             "px-7 py-3.5 text-xs": size === "md",
             "px-9 py-4 text-xs": size === "lg",
           },

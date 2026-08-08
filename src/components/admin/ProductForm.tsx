@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { forwardRef, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm, useWatch, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { slugify } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +12,9 @@ import {
   IMAGE_KIND_LABELS,
   VIDEO_KINDS,
   VIDEO_KIND_LABELS,
+  productFormSchema,
+  productFormToPayload,
+  type ProductFormInput,
 } from "@/lib/product-schema";
 import { Trash2, Plus, Upload, X, Check, Film } from "lucide-react";
 
@@ -57,6 +62,8 @@ export interface ProductFormInitial {
   description: string;
   collectionId: string;
   basePrice: string;
+  /** Optional so callers that predate compare-at pricing still type-check. */
+  mrp?: string;
   tags: string;
   isVisible: boolean;
   isFeatured: boolean;
@@ -89,26 +96,46 @@ interface ProductFormProps {
 
 export function ProductForm({ initial, collections, mode }: ProductFormProps) {
   const router = useRouter();
-  const [form, setForm] = useState(initial);
-  const [skus, setSkus] = useState<SkuRow[]>(initial.skus);
-  const [images, setImages] = useState<ImageRow[]>(initial.images);
-  const [videos, setVideos] = useState<VideoRow[]>(initial.videos);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  /** Server-side and upload failures — everything else surfaces per field. */
+  const [formError, setFormError] = useState("");
 
-  const set = (key: keyof typeof form, value: string | boolean) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const {
+    register,
+    control,
+    handleSubmit,
+    setValue,
+    getValues,
+    formState: { errors, isSubmitting },
+  } = useForm<ProductFormInput>({
+    resolver: zodResolver(productFormSchema),
+    // `mrp` is optional on the initial shape but the input has to stay
+    // controlled, so it is filled in rather than left undefined.
+    defaultValues: { ...initial, mrp: initial.mrp ?? "" },
+  });
 
-  const handleNameChange = (value: string) => {
-    set("name", value);
-    if (mode === "create") set("slug", slugify(value));
-  };
+  /**
+   * The three media/variant arrays live in form state so the schema validates
+   * them alongside everything else. They're read back with `useWatch` rather
+   * than `useFieldArray` because every row is addressed by its `tempId` — the
+   * upload callbacks resolve long after the row was appended, by which time an
+   * index may point somewhere else entirely. (`useWatch` over `watch`: the
+   * latter returns a fresh function each render, which makes the React Compiler
+   * skip memoizing this component.)
+   */
+  const skus = useWatch({ control, name: "skus" });
+  const images = useWatch({ control, name: "images" });
+  const videos = useWatch({ control, name: "videos" });
+  const gstExempt = useWatch({ control, name: "gstExempt" });
+
+  const setSkus = (next: SkuRow[]) => setValue("skus", next, { shouldValidate: true });
+  const setImages = (next: ImageRow[]) => setValue("images", next, { shouldValidate: true });
+  const setVideos = (next: VideoRow[]) => setValue("videos", next, { shouldValidate: true });
 
   /* ---------------------------------------------------------------- SKUs */
 
   const addSku = () =>
-    setSkus((prev) => [
-      ...prev,
+    setSkus([
+      ...skus,
       {
         tempId: crypto.randomUUID(),
         size: "",
@@ -122,10 +149,9 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
     ]);
 
   const updateSku = (tempId: string, key: keyof SkuRow, value: string | boolean) =>
-    setSkus((prev) => prev.map((s) => (s.tempId === tempId ? { ...s, [key]: value } : s)));
+    setSkus(skus.map((s) => (s.tempId === tempId ? { ...s, [key]: value } : s)));
 
-  const removeSku = (tempId: string) =>
-    setSkus((prev) => prev.filter((s) => s.tempId !== tempId));
+  const removeSku = (tempId: string) => setSkus(skus.filter((s) => s.tempId !== tempId));
 
   /* -------------------------------------------------------------- Uploads */
 
@@ -158,33 +184,40 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
     []
   );
 
+  // These callbacks await an upload between reading and writing the array, so
+  // they always re-read through `getValues` — the `watch` snapshot captured at
+  // render time would be stale by the time the request comes back, and two
+  // concurrent uploads would clobber each other.
   const handleImageFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     for (const file of files) {
       const tempId = crypto.randomUUID();
-      setImages((prev) => [
-        ...prev,
+      const current = getValues("images");
+      setImages([
+        ...current,
         {
           tempId,
           url: "",
           altText: "",
           // The first upload becomes the front shot and the card image; the
           // admin can re-tag any of them afterwards.
-          kind: prev.length === 0 ? "FRONT" : "OTHER",
-          sortOrder: prev.length,
-          isPrimary: prev.length === 0,
+          kind: current.length === 0 ? "FRONT" : "OTHER",
+          sortOrder: current.length,
+          isPrimary: current.length === 0,
           uploading: true,
         },
       ]);
 
       const { url, error: uploadError } = await upload(file, "image");
       if (url) {
-        setImages((prev) =>
-          prev.map((img) => (img.tempId === tempId ? { ...img, url, uploading: false } : img))
+        setImages(
+          getValues("images").map((img) =>
+            img.tempId === tempId ? { ...img, url, uploading: false } : img
+          )
         );
       } else {
-        setImages((prev) => prev.filter((img) => img.tempId !== tempId));
-        setError(uploadError || "Failed to upload image. Check Cloudinary configuration.");
+        setImages(getValues("images").filter((img) => img.tempId !== tempId));
+        setFormError(uploadError || "Failed to upload image. Check Cloudinary configuration.");
       }
     }
     e.target.value = "";
@@ -194,23 +227,24 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
     const files = Array.from(e.target.files ?? []);
     for (const file of files) {
       const tempId = crypto.randomUUID();
-      setVideos((prev) => [
-        ...prev,
+      const current = getValues("videos");
+      setVideos([
+        ...current,
         {
           tempId,
           url: "",
           posterUrl: "",
           kind: "REEL",
           durationSec: "",
-          sortOrder: prev.length,
+          sortOrder: current.length,
           uploading: true,
         },
       ]);
 
       const { url, posterUrl, durationSec, error: uploadError } = await upload(file, "video");
       if (url) {
-        setVideos((prev) =>
-          prev.map((v) =>
+        setVideos(
+          getValues("videos").map((v) =>
             v.tempId === tempId
               ? {
                   ...v,
@@ -223,109 +257,34 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
           )
         );
       } else {
-        setVideos((prev) => prev.filter((v) => v.tempId !== tempId));
-        setError(uploadError || "Failed to upload video.");
+        setVideos(getValues("videos").filter((v) => v.tempId !== tempId));
+        setFormError(uploadError || "Failed to upload video.");
       }
     }
     e.target.value = "";
   };
 
   const removeImage = (tempId: string) => {
-    setImages((prev) => {
-      const filtered = prev.filter((img) => img.tempId !== tempId);
-      // Something must stay primary — otherwise the card has no image.
-      if (filtered.length > 0 && !filtered.some((img) => img.isPrimary)) {
-        filtered[0] = { ...filtered[0], isPrimary: true };
-      }
-      return filtered;
-    });
+    const filtered = images.filter((img) => img.tempId !== tempId);
+    // Something must stay primary — otherwise the card has no image.
+    if (filtered.length > 0 && !filtered.some((img) => img.isPrimary)) {
+      filtered[0] = { ...filtered[0], isPrimary: true };
+    }
+    setImages(filtered);
   };
 
   const setPrimary = (tempId: string) =>
-    setImages((prev) => prev.map((img) => ({ ...img, isPrimary: img.tempId === tempId })));
+    setImages(images.map((img) => ({ ...img, isPrimary: img.tempId === tempId })));
 
   const setImageKind = (tempId: string, kind: ImageKind) =>
-    setImages((prev) => prev.map((img) => (img.tempId === tempId ? { ...img, kind } : img)));
+    setImages(images.map((img) => (img.tempId === tempId ? { ...img, kind } : img)));
 
   /* --------------------------------------------------------------- Submit */
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  const onSubmit = async (form: ProductFormInput) => {
+    setFormError("");
 
-    if (!form.name || !form.slug || !form.description || !form.basePrice) {
-      setError("Please fill in all required fields (name, slug, description, price).");
-      return;
-    }
-    if (!form.collectionId) {
-      setError("Please choose a collection so the product appears in the right category on the storefront.");
-      return;
-    }
-    if (skus.length === 0) {
-      setError("Add at least one size variant.");
-      return;
-    }
-    if (skus.some((s) => !s.size || !s.price || !s.skuCode)) {
-      setError("Complete all SKU fields (size, price, SKU code).");
-      return;
-    }
-    if (images.some((img) => img.uploading) || videos.some((v) => v.uploading)) {
-      setError("Please wait for uploads to finish.");
-      return;
-    }
-
-    setLoading(true);
     try {
-      const payload = {
-        name: form.name,
-        slug: form.slug,
-        description: form.description,
-        collectionId: form.collectionId || null,
-        basePrice: parseFloat(form.basePrice),
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-        isVisible: form.isVisible,
-        isFeatured: form.isFeatured,
-
-        material: form.material || null,
-        fabric: form.fabric || null,
-        sleeve: form.sleeve || null,
-        neck: form.neck || null,
-        length: form.length || null,
-        careInstr: form.careInstr || null,
-        deliveryTime: form.deliveryTime || null,
-
-        priceIncludesGst: form.priceIncludesGst,
-        gstRate: form.gstRate.trim() === "" ? null : parseFloat(form.gstRate),
-        gstExempt: form.gstExempt,
-        hsnCode: form.hsnCode || null,
-
-        skus: skus.map((s, i) => ({
-          ...(s.id ? { id: s.id } : {}),
-          size: s.size,
-          color: s.color || null,
-          price: parseFloat(s.price),
-          stock: parseInt(s.stock, 10) || 0,
-          skuCode: s.skuCode,
-          isActive: s.isActive,
-          lowStockAt: parseInt(s.lowStockAt, 10) || 0,
-          sortOrder: i,
-        })),
-        images: images.map((img, i) => ({
-          url: img.url,
-          altText: img.altText || null,
-          kind: img.kind,
-          sortOrder: i,
-          isPrimary: img.isPrimary,
-        })),
-        videos: videos.map((v, i) => ({
-          url: v.url,
-          posterUrl: v.posterUrl || null,
-          kind: v.kind,
-          durationSec: v.durationSec ? parseInt(v.durationSec, 10) : null,
-          sortOrder: i,
-        })),
-      };
-
       const url =
         mode === "create" ? "/api/admin/products" : `/api/admin/products/${initial.id}`;
       const method = mode === "create" ? "POST" : "PUT";
@@ -333,21 +292,19 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(productFormToPayload(form)),
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? "Failed to save product.");
+        const data = await res.json().catch(() => ({}));
+        setFormError(data.error ?? "Failed to save product.");
         return;
       }
 
       router.push("/admin/products");
       router.refresh();
     } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+      setFormError("Something went wrong. Please try again.");
     }
   };
 
@@ -355,7 +312,7 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
     "w-full border border-[#e0e0e0] px-3 py-2 text-[13px] font-sans text-black placeholder:text-[#ccc] focus:outline-none focus:border-black transition-colors";
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-3xl space-y-10 pb-16">
+    <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-10 pb-16" noValidate>
       {/* Basic Info */}
       <section>
         <h2 className="text-[10px] font-sans font-medium tracking-luxe uppercase text-brand-gold mb-4">
@@ -364,53 +321,76 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
         <div className="space-y-5 bg-white border border-[#e0e0e0] p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+              <label
+                htmlFor="product-name"
+                className="block text-[11px] font-sans font-medium text-black mb-1.5"
+              >
                 Product Name <span className="text-brand-wine">*</span>
               </label>
               <Input
-                value={form.name}
-                onChange={(e) => handleNameChange(e.target.value)}
+                id="product-name"
                 placeholder="Ivory Silk Lehenga"
-                required
+                error={errors.name?.message}
+                {...register("name", {
+                  // A new product's slug tracks its name; an existing one keeps
+                  // the slug it was published under so links don't break.
+                  onChange: (e) => {
+                    if (mode === "create") {
+                      setValue("slug", slugify(e.target.value), { shouldValidate: true });
+                    }
+                  },
+                })}
               />
             </div>
             <div>
-              <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+              <label
+                htmlFor="product-slug"
+                className="block text-[11px] font-sans font-medium text-black mb-1.5"
+              >
                 URL Slug <span className="text-[#888888] font-normal">(auto-generated)</span>
               </label>
               <Input
-                value={form.slug}
-                onChange={(e) => set("slug", e.target.value)}
+                id="product-slug"
                 placeholder="ivory-silk-lehenga"
-                required
+                error={errors.slug?.message}
+                {...register("slug")}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+            <label
+              htmlFor="product-description"
+              className="block text-[11px] font-sans font-medium text-black mb-1.5"
+            >
               Description <span className="text-brand-wine">*</span>
             </label>
             <textarea
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
+              id="product-description"
               rows={4}
               className={`${fieldClass} resize-none`}
               placeholder="Describe the piece — fabric, craft, occasion..."
-              required
+              {...register("description")}
             />
+            {errors.description && (
+              <p className="text-[11px] font-sans text-brand-wine mt-1">
+                {errors.description.message}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+              <label
+                htmlFor="product-collection"
+                className="block text-[11px] font-sans font-medium text-black mb-1.5"
+              >
                 Collection <span className="text-brand-gold">*</span>
               </label>
               <select
-                value={form.collectionId}
-                onChange={(e) => set("collectionId", e.target.value)}
-                required
+                id="product-collection"
                 className={`${fieldClass} bg-white py-2.5 appearance-none cursor-pointer`}
+                {...register("collectionId")}
               >
                 <option value="">— Select a collection —</option>
                 {collections.map((col) => (
@@ -419,29 +399,50 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
                   </option>
                 ))}
               </select>
+              {errors.collectionId && (
+                <p className="text-[11px] font-sans text-brand-wine mt-1">
+                  {errors.collectionId.message}
+                </p>
+              )}
             </div>
             <div>
-              <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+              <label
+                htmlFor="product-tags"
+                className="block text-[11px] font-sans font-medium text-black mb-1.5"
+              >
                 Tags <span className="text-[#888888] font-normal">(comma-separated)</span>
               </label>
               <Input
-                value={form.tags}
-                onChange={(e) => set("tags", e.target.value)}
+                id="product-tags"
                 placeholder="bridal, festive, lehenga"
+                error={errors.tags?.message}
+                {...register("tags")}
               />
             </div>
           </div>
 
           <div className="flex gap-8 pt-1">
-            <Toggle
-              checked={form.isVisible}
-              onChange={(v) => set("isVisible", v)}
-              label="Visible on store"
+            <Controller
+              control={control}
+              name="isVisible"
+              render={({ field }) => (
+                <Toggle
+                  checked={field.value}
+                  onChange={field.onChange}
+                  label="Visible on store"
+                />
+              )}
             />
-            <Toggle
-              checked={form.isFeatured}
-              onChange={(v) => set("isFeatured", v)}
-              label="Featured on home"
+            <Controller
+              control={control}
+              name="isFeatured"
+              render={({ field }) => (
+                <Toggle
+                  checked={field.value}
+                  onChange={field.onChange}
+                  label="Featured on home"
+                />
+              )}
             />
           </div>
         </div>
@@ -453,65 +454,111 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
           Pricing &amp; Tax
         </h2>
         <div className="space-y-5 bg-white border border-[#e0e0e0] p-6">
-          <div>
-            <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
-              Base Price (₹) <span className="text-brand-wine">*</span>
-            </label>
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              value={form.basePrice}
-              onChange={(e) => set("basePrice", e.target.value)}
-              placeholder="25000"
-              required
-            />
-            <p className="text-[10px] font-sans text-[#888888] mt-1">
-              Used for filtering. Each variant can have its own price.
-            </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label
+                htmlFor="product-base-price"
+                className="block text-[11px] font-sans font-medium text-black mb-1.5"
+              >
+                Base Price (₹) <span className="text-brand-wine">*</span>
+              </label>
+              <Input
+                id="product-base-price"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="25000"
+                error={errors.basePrice?.message}
+                {...register("basePrice")}
+              />
+              <p className="text-[10px] font-sans text-[#888888] mt-1">
+                Used for filtering. Each variant can have its own price.
+              </p>
+            </div>
+            <div>
+              <label
+                htmlFor="product-mrp"
+                className="block text-[11px] font-sans font-medium text-black mb-1.5"
+              >
+                MRP / Compare-at Price (₹)
+              </label>
+              <Input
+                id="product-mrp"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Leave blank — no discount"
+                error={errors.mrp?.message}
+                {...register("mrp")}
+              />
+              <p className="text-[10px] font-sans text-[#888888] mt-1">
+                Struck through beside the price to show the saving. Blank means no
+                discount badge at all; it can never sit below the base price.
+              </p>
+            </div>
           </div>
 
           <div className="pt-1 space-y-4 border-t border-[#f0f0f0]">
-            <Toggle
-              checked={form.priceIncludesGst}
-              onChange={(v) => set("priceIncludesGst", v)}
-              label="Price includes GST"
-              hint="Off means GST is added on top of the listed price at checkout."
+            <Controller
+              control={control}
+              name="priceIncludesGst"
+              render={({ field }) => (
+                <Toggle
+                  checked={field.value}
+                  onChange={field.onChange}
+                  label="Price includes GST"
+                  hint="Off means GST is added on top of the listed price at checkout."
+                />
+              )}
             />
-            <Toggle
-              checked={form.gstExempt}
-              onChange={(v) => set("gstExempt", v)}
-              label="Exclude GST on this product"
-              hint="No tax is charged on this piece at all."
+            <Controller
+              control={control}
+              name="gstExempt"
+              render={({ field }) => (
+                <Toggle
+                  checked={field.value}
+                  onChange={field.onChange}
+                  label="Exclude GST on this product"
+                  hint="No tax is charged on this piece at all."
+                />
+              )}
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+                <label
+                  htmlFor="product-gst-rate"
+                  className="block text-[11px] font-sans font-medium text-black mb-1.5"
+                >
                   GST Rate Override (%)
                 </label>
                 <Input
+                  id="product-gst-rate"
                   type="number"
                   min="0"
                   max="100"
                   step="0.5"
-                  value={form.gstRate}
-                  onChange={(e) => set("gstRate", e.target.value)}
                   placeholder="Auto (price slab)"
-                  disabled={form.gstExempt}
+                  disabled={gstExempt}
+                  error={errors.gstRate?.message}
+                  {...register("gstRate")}
                 />
                 <p className="text-[10px] font-sans text-[#888888] mt-1">
                   Leave blank to use the store slab: 5% up to the threshold, 18% above.
                 </p>
               </div>
               <div>
-                <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+                <label
+                  htmlFor="product-hsn"
+                  className="block text-[11px] font-sans font-medium text-black mb-1.5"
+                >
                   HSN Code
                 </label>
                 <Input
-                  value={form.hsnCode}
-                  onChange={(e) => set("hsnCode", e.target.value)}
+                  id="product-hsn"
                   placeholder="6204"
+                  error={errors.hsnCode?.message}
+                  {...register("hsnCode")}
                 />
               </div>
             </div>
@@ -527,53 +574,56 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
         <div className="space-y-5 bg-white border border-[#e0e0e0] p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <LabelledInput
+              id="product-fabric"
               label="Fabric"
-              value={form.fabric}
-              onChange={(v) => set("fabric", v)}
               placeholder="Chanderi silk"
+              {...register("fabric")}
             />
             <LabelledInput
+              id="product-material"
               label="Material"
-              value={form.material}
-              onChange={(v) => set("material", v)}
               placeholder="Pure silk with zardozi work"
+              {...register("material")}
             />
             <LabelledInput
+              id="product-sleeve"
               label="Sleeve"
-              value={form.sleeve}
-              onChange={(v) => set("sleeve", v)}
               placeholder="Three-quarter"
+              {...register("sleeve")}
             />
             <LabelledInput
+              id="product-neck"
               label="Neck"
-              value={form.neck}
-              onChange={(v) => set("neck", v)}
               placeholder="Sweetheart"
+              {...register("neck")}
             />
             <LabelledInput
+              id="product-length"
               label="Length"
-              value={form.length}
-              onChange={(v) => set("length", v)}
               placeholder="Floor length"
+              {...register("length")}
             />
             <LabelledInput
+              id="product-delivery-time"
               label="Delivery Time"
-              value={form.deliveryTime}
-              onChange={(v) => set("deliveryTime", v)}
               placeholder="Ships in 2–4 weeks"
+              {...register("deliveryTime")}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-sans font-medium text-black mb-1.5">
+            <label
+              htmlFor="product-care"
+              className="block text-[11px] font-sans font-medium text-black mb-1.5"
+            >
               Care Instructions
             </label>
             <textarea
-              value={form.careInstr}
-              onChange={(e) => set("careInstr", e.target.value)}
+              id="product-care"
               rows={2}
               className={`${fieldClass} resize-none`}
               placeholder="Dry clean only. Store in muslin bag."
+              {...register("careInstr")}
             />
           </div>
         </div>
@@ -613,8 +663,9 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
                 </span>
               ))}
             </div>
-            {skus.map((sku) => {
+            {skus.map((sku, index) => {
               const out = (parseInt(sku.stock, 10) || 0) === 0;
+              const rowErrors = errors.skus?.[index];
               return (
                 <div
                   key={sku.tempId}
@@ -623,44 +674,41 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
                   }`}
                 >
                   <Input
-                    value={sku.size}
-                    onChange={(e) => updateSku(sku.tempId, "size", e.target.value)}
                     placeholder="S / M / 38"
                     aria-label="Size"
+                    error={rowErrors?.size?.message}
+                    {...register(`skus.${index}.size`)}
                   />
                   <Input
-                    value={sku.color}
-                    onChange={(e) => updateSku(sku.tempId, "color", e.target.value)}
                     placeholder="Ivory"
                     aria-label="Colour"
+                    {...register(`skus.${index}.color`)}
                   />
                   <Input
                     type="number"
                     min="0"
-                    value={sku.price}
-                    onChange={(e) => updateSku(sku.tempId, "price", e.target.value)}
                     placeholder="25000"
                     aria-label="Price"
+                    error={rowErrors?.price?.message}
+                    {...register(`skus.${index}.price`)}
                   />
                   <Input
                     type="number"
                     min="0"
-                    value={sku.stock}
-                    onChange={(e) => updateSku(sku.tempId, "stock", e.target.value)}
                     aria-label="Stock"
+                    {...register(`skus.${index}.stock`)}
                   />
                   <Input
                     type="number"
                     min="0"
-                    value={sku.lowStockAt}
-                    onChange={(e) => updateSku(sku.tempId, "lowStockAt", e.target.value)}
                     aria-label="Low stock threshold"
+                    {...register(`skus.${index}.lowStockAt`)}
                   />
                   <Input
-                    value={sku.skuCode}
-                    onChange={(e) => updateSku(sku.tempId, "skuCode", e.target.value)}
                     placeholder="DS-001-S-IVY"
                     aria-label="SKU code"
+                    error={rowErrors?.skuCode?.message}
+                    {...register(`skus.${index}.skuCode`)}
                   />
                   <button
                     type="button"
@@ -690,6 +738,12 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
               );
             })}
           </div>
+        )}
+
+        {/* `errors.skus.message` is the array-level "add at least one" rule; the
+            per-row messages render inline above. */}
+        {errors.skus?.message && (
+          <p className="text-[11px] font-sans text-brand-wine mt-2">{errors.skus.message}</p>
         )}
       </section>
 
@@ -825,9 +879,7 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
                     )}
                     <button
                       type="button"
-                      onClick={() =>
-                        setVideos((prev) => prev.filter((v) => v.tempId !== video.tempId))
-                      }
+                      onClick={() => setVideos(videos.filter((v) => v.tempId !== video.tempId))}
                       className="absolute top-1 right-1 z-10 bg-white/80 hover:bg-brand-wine hover:text-white text-[#888888] rounded-full w-5 h-5 flex items-center justify-center transition-colors"
                       aria-label="Remove video"
                     >
@@ -838,8 +890,8 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
                   <select
                     value={video.kind}
                     onChange={(e) =>
-                      setVideos((prev) =>
-                        prev.map((v) =>
+                      setVideos(
+                        videos.map((v) =>
                           v.tempId === video.tempId
                             ? { ...v, kind: e.target.value as VideoKind }
                             : v
@@ -863,14 +915,14 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
       </section>
 
       {/* Error + Actions */}
-      {error && (
+      {(formError || errors.images?.message || errors.videos?.message) && (
         <p className="text-[12px] font-sans text-brand-wine bg-brand-wine/5 border border-brand-wine/20 px-4 py-3">
-          {error}
+          {formError || errors.images?.message || errors.videos?.message}
         </p>
       )}
 
       <div className="flex gap-4">
-        <Button type="submit" loading={loading}>
+        <Button type="submit" loading={isSubmitting}>
           {mode === "create" ? "Create Product" : "Save Changes"}
         </Button>
         <Button type="button" variant="outline" onClick={() => router.push("/admin/products")}>
@@ -881,24 +933,23 @@ export function ProductForm({ initial, collections, mode }: ProductFormProps) {
   );
 }
 
-function LabelledInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-[11px] font-sans font-medium text-black mb-1.5">{label}</label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
-    </div>
-  );
-}
+/**
+ * Label + input pair. Forwards its ref so a `register(...)` spread reaches the
+ * underlying `<input>` — without that, React Hook Form never sees the field.
+ */
+const LabelledInput = forwardRef<
+  HTMLInputElement,
+  { label: string; id: string } & React.InputHTMLAttributes<HTMLInputElement>
+>(({ label, id, ...props }, ref) => (
+  <div>
+    <label htmlFor={id} className="block text-[11px] font-sans font-medium text-black mb-1.5">
+      {label}
+    </label>
+    <Input ref={ref} id={id} {...props} />
+  </div>
+));
+
+LabelledInput.displayName = "LabelledInput";
 
 function Toggle({
   checked,

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { permanentRedirect } from "next/navigation";
 import { CollectionsPageClient } from "@/components/store/CollectionsPageClient";
+import { CollectionHero } from "@/components/store/CollectionHero";
 import { JsonLd } from "@/components/JsonLd";
 import { getCollectionsData } from "@/lib/collections";
 import { pageMetadata } from "@/lib/seo";
@@ -50,11 +52,26 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
           ),
         ]}
       />
-      <CollectionsPageClient
-        initialProducts={data.products}
-        collections={data.collections}
-        activeCollection="all"
+      <CollectionHero
+        eyebrow="The House of Dstyle"
+        title="Collections"
+        description={DESCRIPTION}
+        crumbs={[
+          { label: "Home", href: "/" },
+          { label: "Collections" },
+        ]}
       />
+      {/* `CollectionsPageClient` reads `useSearchParams` to seed its filters.
+          Both collection routes already await `searchParams`, so they render
+          dynamically and this boundary never falls back — it is here so the
+          build can't break if either route is ever made static. */}
+      <Suspense fallback={null}>
+        <CollectionsPageClient
+          initialProducts={data.products}
+          collections={data.collections}
+          activeCollection="all"
+        />
+      </Suspense>
     </div>
   );
 }

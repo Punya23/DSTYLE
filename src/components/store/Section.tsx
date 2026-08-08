@@ -28,8 +28,8 @@ export function Reveal({
     if (!el) return;
 
     if (typeof IntersectionObserver === "undefined") {
-      setShown(true);
-      return;
+      const t0 = window.setTimeout(() => setShown(true), 0);
+      return () => window.clearTimeout(t0);
     }
 
     const io = new IntersectionObserver(

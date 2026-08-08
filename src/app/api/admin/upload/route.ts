@@ -4,6 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import { cloudinary } from "@/lib/cloudinary";
 import { auth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * Cloudinary is the production media host. It's only "configured" when all three
@@ -113,6 +114,11 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.role || !["ADMIN", "STAFF"].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
+
+  // Admin-only, but each accepted call is a 100 MB body and a Cloudinary
+  // transcode — a stuck retry loop in the admin UI shouldn't run up the bill.
+  const limited = await enforceRateLimit(req, "upload", session.user.id);
+  if (limited) return limited;
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;

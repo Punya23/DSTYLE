@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm, useWatch, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { couponSummary } from "@/lib/coupon-schema";
+import {
+  couponSummary,
+  couponFormSchema,
+  couponFormToPayload,
+  type CouponFormInput,
+} from "@/lib/coupon-schema";
 import { formatPrice, cn } from "@/lib/utils";
 
 export interface AdminCoupon {
@@ -36,25 +43,11 @@ const TYPE_LABELS: Record<AdminCoupon["type"], string> = {
   BUY_X_GET_Y: "Buy X get Y",
 };
 
-/** Form state is all strings — a half-typed number field has no numeric value. */
-interface FormState {
-  code: string;
-  description: string;
-  type: AdminCoupon["type"];
-  value: string;
-  maxDiscount: string;
-  minOrder: string;
-  buyQty: string;
-  getQty: string;
-  startsAt: string;
-  expiresAt: string;
-  usageLimit: string;
-  perUserLimit: string;
-  isActive: boolean;
-  firstOrderOnly: boolean;
-}
-
-const BLANK: FormState = {
+/**
+ * Form state is all strings — a half-typed number field has no numeric value.
+ * The shape and its validation live in `coupon-schema` so the API shares them.
+ */
+const BLANK: CouponFormInput = {
   code: "",
   description: "",
   type: "PERCENT",
@@ -81,7 +74,7 @@ function toLocalInput(iso: string | null): string {
   )}:${pad(d.getMinutes())}`;
 }
 
-function toForm(coupon: AdminCoupon): FormState {
+function toForm(coupon: AdminCoupon): CouponFormInput {
   return {
     code: coupon.code,
     description: coupon.description ?? "",
@@ -100,57 +93,45 @@ function toForm(coupon: AdminCoupon): FormState {
   };
 }
 
-const numberOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
-
 export function CouponManager({ initial }: { initial: AdminCoupon[] }) {
   const router = useRouter();
   const [coupons, setCoupons] = useState(initial);
   const [editing, setEditing] = useState<AdminCoupon | null>(null);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<FormState>(BLANK);
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<CouponFormInput>({
+    resolver: zodResolver(couponFormSchema),
+    defaultValues: BLANK,
+  });
+
+  // Which fields are relevant depends on the discount type. `useWatch` rather
+  // than `watch` — the latter returns a fresh function each render, which makes
+  // the React Compiler skip memoizing the whole component.
+  const type = useWatch({ control, name: "type" });
 
   const startCreate = () => {
     setEditing(null);
-    setForm(BLANK);
+    reset(BLANK);
     setError("");
     setOpen(true);
   };
 
   const startEdit = (coupon: AdminCoupon) => {
     setEditing(coupon);
-    setForm(toForm(coupon));
+    reset(toForm(coupon));
     setError("");
     setOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (form: CouponFormInput) => {
     setError("");
-    setSaving(true);
-
-    const payload = {
-      code: form.code.trim().toUpperCase(),
-      description: form.description.trim() || null,
-      type: form.type,
-      value: form.type === "PERCENT" || form.type === "FIXED" ? Number(form.value || 0) : 0,
-      maxDiscount: form.type === "PERCENT" ? numberOrNull(form.maxDiscount) : null,
-      minOrder: numberOrNull(form.minOrder),
-      buyQty: form.type === "BUY_X_GET_Y" ? numberOrNull(form.buyQty) : null,
-      getQty: form.type === "BUY_X_GET_Y" ? numberOrNull(form.getQty) : null,
-      startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
-      expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
-      usageLimit: numberOrNull(form.usageLimit),
-      perUserLimit: numberOrNull(form.perUserLimit),
-      isActive: form.isActive,
-      firstOrderOnly: form.firstOrderOnly,
-      collectionIds: [],
-      productIds: [],
-    };
 
     try {
       const res = await fetch(
@@ -158,7 +139,7 @@ export function CouponManager({ initial }: { initial: AdminCoupon[] }) {
         {
           method: editing ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(couponFormToPayload(form)),
         }
       );
       const data = await res.json();
@@ -176,8 +157,6 @@ export function CouponManager({ initial }: { initial: AdminCoupon[] }) {
       );
     } catch {
       setError("Something went wrong. Please try again.");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -202,7 +181,7 @@ export function CouponManager({ initial }: { initial: AdminCoupon[] }) {
     router.refresh();
   };
 
-  const needsValue = form.type === "PERCENT" || form.type === "FIXED";
+  const needsValue = type === "PERCENT" || type === "FIXED";
 
   return (
     <>
@@ -333,23 +312,30 @@ export function CouponManager({ initial }: { initial: AdminCoupon[] }) {
         title={editing ? `Edit ${editing.code}` : "New Coupon"}
         size="lg"
       >
-        <form onSubmit={handleSave} className="space-y-5">
+        <form onSubmit={handleSubmit(handleSave)} className="space-y-5" noValidate>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
+              id="coupon-code"
               label="Code"
-              value={form.code}
-              onChange={(e) => set("code", e.target.value.toUpperCase())}
               placeholder="FIRST10"
-              required
+              error={errors.code?.message}
+              {...register("code", {
+                // Codes are matched case-insensitively server-side, but showing
+                // them uppercase as you type matches how they're displayed.
+                setValueAs: (v: string) => v.toUpperCase(),
+              })}
             />
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-sans font-medium tracking-[0.2em] uppercase text-brand-ink">
+              <label
+                htmlFor="coupon-type"
+                className="text-[10px] font-sans font-medium tracking-[0.2em] uppercase text-brand-ink"
+              >
                 Discount Type
               </label>
               <select
-                value={form.type}
-                onChange={(e) => set("type", e.target.value as AdminCoupon["type"])}
+                id="coupon-type"
                 className="w-full border border-brand-ivory-deep bg-white px-4 py-3 text-sm font-sans text-brand-ink focus:border-brand-gold focus:outline-none"
+                {...register("type")}
               >
                 {Object.entries(TYPE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -361,108 +347,125 @@ export function CouponManager({ initial }: { initial: AdminCoupon[] }) {
           </div>
 
           <Input
+            id="coupon-description"
             label="Description"
-            value={form.description}
-            onChange={(e) => set("description", e.target.value)}
             placeholder="10% off your first order"
+            error={errors.description?.message}
+            {...register("description")}
           />
 
           {needsValue && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label={form.type === "PERCENT" ? "Percent Off" : "Rupees Off"}
+                id="coupon-value"
+                label={type === "PERCENT" ? "Percent Off" : "Rupees Off"}
                 type="number"
                 min="0"
-                step={form.type === "PERCENT" ? "1" : "10"}
-                value={form.value}
-                onChange={(e) => set("value", e.target.value)}
-                placeholder={form.type === "PERCENT" ? "10" : "500"}
-                required
+                step={type === "PERCENT" ? "1" : "10"}
+                placeholder={type === "PERCENT" ? "10" : "500"}
+                error={errors.value?.message}
+                {...register("value")}
               />
-              {form.type === "PERCENT" && (
+              {type === "PERCENT" && (
                 <Input
+                  id="coupon-max-discount"
                   label="Max Discount (₹)"
                   type="number"
                   min="0"
-                  value={form.maxDiscount}
-                  onChange={(e) => set("maxDiscount", e.target.value)}
                   placeholder="Uncapped"
+                  error={errors.maxDiscount?.message}
+                  {...register("maxDiscount")}
                 />
               )}
             </div>
           )}
 
-          {form.type === "BUY_X_GET_Y" && (
+          {type === "BUY_X_GET_Y" && (
             <div className="grid grid-cols-2 gap-4">
               <Input
+                id="coupon-buy-qty"
                 label="Buy Quantity"
                 type="number"
                 min="1"
-                value={form.buyQty}
-                onChange={(e) => set("buyQty", e.target.value)}
+                error={errors.buyQty?.message}
+                {...register("buyQty")}
               />
               <Input
+                id="coupon-get-qty"
                 label="Free Quantity"
                 type="number"
                 min="1"
-                value={form.getQty}
-                onChange={(e) => set("getQty", e.target.value)}
+                error={errors.getQty?.message}
+                {...register("getQty")}
               />
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
+              id="coupon-min-order"
               label="Min Order (₹)"
               type="number"
               min="0"
-              value={form.minOrder}
-              onChange={(e) => set("minOrder", e.target.value)}
               placeholder="None"
+              error={errors.minOrder?.message}
+              {...register("minOrder")}
             />
             <Input
+              id="coupon-usage-limit"
               label="Total Uses"
               type="number"
               min="1"
-              value={form.usageLimit}
-              onChange={(e) => set("usageLimit", e.target.value)}
               placeholder="Unlimited"
+              error={errors.usageLimit?.message}
+              {...register("usageLimit")}
             />
             <Input
+              id="coupon-per-user-limit"
               label="Uses Per Customer"
               type="number"
               min="1"
-              value={form.perUserLimit}
-              onChange={(e) => set("perUserLimit", e.target.value)}
               placeholder="Unlimited"
+              error={errors.perUserLimit?.message}
+              {...register("perUserLimit")}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
+              id="coupon-starts-at"
               label="Starts"
               type="datetime-local"
-              value={form.startsAt}
-              onChange={(e) => set("startsAt", e.target.value)}
+              error={errors.startsAt?.message}
+              {...register("startsAt")}
             />
             <Input
+              id="coupon-expires-at"
               label="Expires"
               type="datetime-local"
-              value={form.expiresAt}
-              onChange={(e) => set("expiresAt", e.target.value)}
+              error={errors.expiresAt?.message}
+              {...register("expiresAt")}
             />
           </div>
 
           <div className="flex flex-wrap gap-8 pt-1">
-            <CheckToggle
-              checked={form.isActive}
-              onChange={(v) => set("isActive", v)}
-              label="Active"
+            <Controller
+              control={control}
+              name="isActive"
+              render={({ field }) => (
+                <CheckToggle checked={field.value} onChange={field.onChange} label="Active" />
+              )}
             />
-            <CheckToggle
-              checked={form.firstOrderOnly}
-              onChange={(v) => set("firstOrderOnly", v)}
-              label="First order only"
+            <Controller
+              control={control}
+              name="firstOrderOnly"
+              render={({ field }) => (
+                <CheckToggle
+                  checked={field.value}
+                  onChange={field.onChange}
+                  label="First order only"
+                />
+              )}
             />
           </div>
 
@@ -473,7 +476,7 @@ export function CouponManager({ initial }: { initial: AdminCoupon[] }) {
           )}
 
           <div className="flex gap-3 pt-1">
-            <Button type="submit" loading={saving}>
+            <Button type="submit" loading={isSubmitting}>
               {editing ? "Save Changes" : "Create Coupon"}
             </Button>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

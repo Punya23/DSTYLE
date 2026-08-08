@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, validatePasswordStrength, PASSWORD_MIN_LENGTH } from "@/lib/password";
 import { issueVerificationEmail } from "@/lib/verification";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
@@ -15,6 +16,11 @@ const bodySchema = z.object({
  * verified — that is what stops anyone registering an email they don't own.
  */
 export async function POST(req: NextRequest) {
+  // Every accepted registration sends a verification email; unbounded, this is a
+  // free mail cannon pointed at arbitrary inboxes.
+  const limited = await enforceRateLimit(req, "authWrite");
+  if (limited) return limited;
+
   let parsed;
   try {
     parsed = bodySchema.parse(await req.json());

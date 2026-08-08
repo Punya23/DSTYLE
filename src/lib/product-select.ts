@@ -11,6 +11,7 @@ export const productCardSelect = {
   name: true,
   slug: true,
   basePrice: true,
+  mrp: true,
   tags: true,
   images: { orderBy: { sortOrder: "asc" } },
   skus: true,
@@ -21,7 +22,7 @@ type RawProductCard = Prisma.ProductGetPayload<{ select: typeof productCardSelec
 
 export type ProductCardData = Pick<
   Product,
-  "id" | "name" | "slug" | "basePrice" | "images" | "tags" | "skus" | "collection"
+  "id" | "name" | "slug" | "basePrice" | "mrp" | "images" | "tags" | "skus" | "collection"
 >;
 
 /** Prisma returns `Decimal` for money columns; the card expects plain numbers. */
@@ -31,6 +32,7 @@ export function toProductCard(p: RawProductCard): ProductCardData {
     name: p.name,
     slug: p.slug,
     basePrice: Number(p.basePrice),
+    mrp: p.mrp == null ? null : Number(p.mrp),
     tags: p.tags,
     images: p.images.map((i) => ({
       id: i.id,
@@ -46,6 +48,7 @@ export function toProductCard(p: RawProductCard): ProductCardData {
       skuCode: s.skuCode,
       stock: s.stock,
       price: Number(s.price),
+      mrp: s.mrp == null ? null : Number(s.mrp),
     })),
     collection: p.collection,
   };

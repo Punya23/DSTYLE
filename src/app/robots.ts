@@ -9,7 +9,14 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         // Private, transactional and single-use surfaces. Product and
         // collection pages stay fully crawlable.
-        disallow: ["/admin", "/api/", "/account", "/checkout", "/reset-password"],
+        disallow: [
+          "/admin",
+          "/api/",
+          "/account",
+          "/checkout",
+          "/reset-password",
+          "/unsubscribe",
+        ],
       },
     ],
     sitemap: absoluteUrl("/sitemap.xml"),

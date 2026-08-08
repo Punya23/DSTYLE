@@ -2,18 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getStoreConfig, updateStoreConfig } from "@/lib/settings";
+import { storeSettingsSchema } from "@/lib/account-schemas";
 
-/** Store-wide tax and shipping rules. Read by every pricing call. */
-const schema = z.object({
-  gstEnabled: z.boolean().optional(),
-  pricesIncludeGst: z.boolean().optional(),
-  gstLowRate: z.number().min(0).max(100).optional(),
-  gstHighRate: z.number().min(0).max(100).optional(),
-  gstSlabThreshold: z.number().min(0).optional(),
-  shippingFlat: z.number().min(0).optional(),
-  freeShippingThreshold: z.number().min(0).optional(),
-  codFee: z.number().min(0).optional(),
-});
+/**
+ * Store-wide tax and shipping rules. Read by every pricing call.
+ *
+ * Every field is optional here because this is a PATCH — the admin form sends
+ * the whole object, but the endpoint must also accept a single-field update.
+ */
+const schema = storeSettingsSchema.partial();
 
 function isAdmin(role: string | undefined) {
   return role === "ADMIN" || role === "STAFF";
