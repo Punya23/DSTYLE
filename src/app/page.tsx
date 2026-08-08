@@ -171,7 +171,6 @@ export default async function HomePage() {
   return (
     <>
       <HeroSection
-        videoUrl="/hero/hero.mp4"
         headline="The House of Dstyle"
         subline="Indian Couture · Bridal · Festive · Pret"
       />
