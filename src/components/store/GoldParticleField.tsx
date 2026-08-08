@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 /**
  * Ambient WebGL backdrop for the footer — a slow drift of warm gold dust,
@@ -29,18 +30,6 @@ function mulberry32(seed: number) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function useReducedMotion() {
-  return useSyncExternalStore(
-    (onChange) => {
-      const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-      mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    () => false // server snapshot
-  );
 }
 
 function Dust({ count = 260, seed = 1337 }: { count?: number; seed?: number }) {

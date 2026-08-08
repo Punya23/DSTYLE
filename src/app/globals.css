@@ -541,6 +541,18 @@ html.lenis body {
   animation: kenburns 18s ease-out forwards;
 }
 
+/* Continuous breathing zoom for a slide that stays mounted across an entire
+   crossfade rotation — unlike heroZoom/kenburns above (one-shot, `forwards`),
+   this loops so a slide re-entering the rotation is still drifting rather
+   than snapping back to scale(1). */
+@keyframes heroDrift {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+.animate-hero-drift {
+  animation: heroDrift 14s ease-in-out infinite alternate;
+}
+
 /* ------------------------------------------------------------------ */
 /* Reduced motion                                                      */
 /* ------------------------------------------------------------------ */
@@ -549,6 +561,7 @@ html.lenis body {
   .animate-marquee-rev,
   .animate-hero-zoom,
   .animate-kenburns,
+  .animate-hero-drift,
   .animate-bounce {
     animation: none !important;
   }
