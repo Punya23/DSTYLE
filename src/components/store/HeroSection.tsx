@@ -122,9 +122,20 @@ export function HeroSection({
       );
 
       if (!reducedMotion) {
+        // force3D: true pins this to the GPU-composited transform path every
+        // render. Left on "auto" (GSAP's default), it flip-flops between the
+        // composited and non-composited path per-render, which — combined
+        // with the will-change hint this element used to carry — raced the
+        // hero photo's first paint into a blank compositor layer often enough
+        // to matter: the image would report loaded/opacity:1/correct-size in
+        // the DOM while rendering solid black, self-healing on any reflow
+        // (e.g. a resize). Reproduced via repeated fresh loads in Chrome
+        // mobile emulation; not visible in every load, which is exactly the
+        // race's signature.
         gsap.to(mediaRef.current, {
           yPercent: 8,
           ease: "none",
+          force3D: true,
           scrollTrigger: {
             trigger: heroRef.current,
             start: "top top",
@@ -197,7 +208,11 @@ export function HeroSection({
           across a landscape viewport. */}
       <div
         ref={mediaRef}
-        className="absolute inset-0 overflow-hidden will-change-transform md:relative md:order-2 md:h-full md:w-[54%]"
+        /* No manual will-change here (see the force3D comment below) — GSAP
+           promotes this element to its own compositor layer once it starts
+           animating it, and it's the ONE promoting it, consistently, that
+           actually matters. */
+        className="absolute inset-0 overflow-hidden md:relative md:order-2 md:h-full md:w-[54%]"
       >
         {/* Decorative — the headline/tagline already carry the message, so the
             whole stack is hidden from assistive tech rather than announcing
