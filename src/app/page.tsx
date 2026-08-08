@@ -1,4 +1,5 @@
 import { BrandStory } from "@/components/store/BrandStory";
+import { CampaignBand } from "@/components/store/CampaignBand";
 import { CategoryTiles, type CategoryTile } from "@/components/store/CategoryTiles";
 import { HeroSection } from "@/components/store/HeroSection";
 import { ProductRail } from "@/components/store/ProductRail";
@@ -194,6 +195,18 @@ export default async function HomePage() {
         className="bg-brand-paper pt-0"
       />
 
+      {/* Full-bleed break — a rail of small cards on either side of it reads
+          as inventory; one uninterrupted photograph between them is what
+          keeps the page from reading as an empty list. */}
+      <CampaignBand
+        src="/products/gold-zardozi-bridal-lehenga/02.jpg"
+        alt="Champagne pleated bridal lehenga with hand-embellished bodice"
+        focalPoint="50% 5%"
+        eyebrow="The Bridal Edit"
+        label="Heirloom Gold"
+        href="/collections?collection=bridal"
+      />
+
       <ProductRail
         products={data.featured}
         eyebrow="Curated for you"
@@ -203,7 +216,6 @@ export default async function HomePage() {
         className="bg-brand-ivory"
       />
 
-      {/* The one editorial break. Everything below it is product again. */}
       <BrandStory />
 
       {data.collectionRails.map((rail, i) => (
@@ -217,6 +229,15 @@ export default async function HomePage() {
           className={i % 2 === 0 ? "bg-brand-paper" : "bg-brand-ivory"}
         />
       ))}
+
+      <CampaignBand
+        src="/products/teal-mirror-drape/01.jpg"
+        alt="Deep emerald mirror-work jumpsuit against a terracotta backdrop"
+        focalPoint="50% 5%"
+        eyebrow="Evening Hours"
+        label="Cocktail Hour"
+        href="/collections?collection=cocktail"
+      />
 
       <StatementBand />
     </>

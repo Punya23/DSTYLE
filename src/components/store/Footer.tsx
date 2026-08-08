@@ -1,14 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { MagneticButton } from "@/components/ui/aceternity/magnetic-button";
-import { GoldParticleField } from "@/components/store/GoldParticleField";
-import { newsletterSchema, type NewsletterInput } from "@/lib/account-schemas";
 
 const FOOTER_NAV = {
   Shop: [
@@ -50,39 +45,6 @@ const fadeUp = {
 };
 
 export function Footer() {
-  const [status, setStatus] = useState<"idle" | "sent">("idle");
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<NewsletterInput>({
-    resolver: zodResolver(newsletterSchema),
-    defaultValues: { email: "", company: "" },
-  });
-
-  const handleSubscribe = async (values: NewsletterInput) => {
-    setFormError(null);
-    try {
-      const res = await fetch("/api/newsletter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setFormError(json.error ?? "Could not sign you up. Please try again.");
-        return;
-      }
-      setStatus("sent");
-      reset();
-    } catch {
-      setFormError("Network problem — check your connection and try again.");
-    }
-  };
-
   return (
     <footer
       className="relative -mt-7 sm:-mt-10 rounded-t-[28px] sm:rounded-t-[40px] bg-brand-ink text-white z-0 overflow-hidden"
@@ -98,99 +60,6 @@ export function Footer() {
               {MARQUEE_TEXT.repeat(4)}
             </span>
           ))}
-        </div>
-      </div>
-
-      {/* Newsletter — ambient gold dust drifting behind the copy */}
-      <div className="relative border-b border-white/[0.08] overflow-hidden">
-        <GoldParticleField className="pointer-events-none absolute inset-0 opacity-70" />
-        <div className="shell relative py-14 md:py-16 lg:py-20">
-          <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            variants={fadeUp}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-end"
-          >
-            <div className="lg:col-span-5">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="h-px w-8 gold-rule-solid opacity-60" />
-                <p className="text-[11px] font-sans tracking-luxe uppercase text-brand-gold">
-                  Stay in the House
-                </p>
-              </div>
-              <h3 className="font-display italic text-3xl lg:text-[2.5rem] text-white leading-snug text-balance">
-                Join the House of Dstyle
-              </h3>
-              <p className="text-[12px] font-sans text-white/40 mt-4 leading-relaxed max-w-[340px]">
-                Private previews, new collection drops, and atelier events — delivered quietly to your inbox.
-              </p>
-            </div>
-            <div className="lg:col-span-7">
-              {status === "sent" ? (
-                <motion.p
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-[13px] font-sans text-brand-champagne border border-brand-gold/30 bg-brand-gold/[0.06] px-5 py-4"
-                >
-                  Welcome to the House — you are on the list.
-                </motion.p>
-              ) : (
-                <form onSubmit={handleSubmit(handleSubscribe)} noValidate>
-                  <div className="flex flex-col sm:flex-row gap-0">
-                    <input
-                      type="email"
-                      placeholder="Your email address"
-                      aria-invalid={Boolean(errors.email)}
-                      /* text-base on touch — under 16px iOS Safari zooms the
-                         page on focus and never zooms back out. */
-                      className="flex-1 bg-white/[0.04] border border-white/12 px-5 py-4 text-base sm:text-sm font-sans text-white placeholder:text-white/25 focus:outline-none focus:border-brand-gold focus:bg-white/[0.06] transition-colors duration-500 aria-[invalid=true]:border-brand-gold/60"
-                      {...register("email")}
-                    />
-                    <MagneticButton className="shrink-0 mt-3 sm:mt-0" strength={0.35}>
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        style={{ backgroundColor: "var(--color-brand-champagne)", color: "var(--color-brand-ink)" }}
-                        className="px-8 py-4 w-full text-[10px] font-sans font-semibold tracking-luxe uppercase transition-[filter] duration-300 hover:brightness-105 disabled:opacity-60"
-                      >
-                        {isSubmitting ? "Joining…" : "Subscribe"}
-                      </button>
-                    </MagneticButton>
-                  </div>
-
-                  {/* Honeypot — hidden from sight, from screen readers and from
-                      the tab order. Anything that fills it is not a person. */}
-                  <div aria-hidden className="absolute h-0 w-0 overflow-hidden opacity-0">
-                    <label htmlFor="newsletter-company">Company</label>
-                    <input
-                      id="newsletter-company"
-                      tabIndex={-1}
-                      autoComplete="off"
-                      {...register("company")}
-                    />
-                  </div>
-
-                  {(errors.email || formError) && (
-                    <p role="alert" className="mt-3 text-[12px] font-sans text-brand-champagne">
-                      {errors.email?.message ?? formError}
-                    </p>
-                  )}
-                  <p className="mt-3 text-[11px] font-sans text-white/30 leading-relaxed">
-                    One-click unsubscribe in every email. Read our{" "}
-                    <Link
-                      href="/policies/privacy"
-                      className="text-white/50 underline underline-offset-2 hover:text-white/80 transition-colors duration-300"
-                    >
-                      privacy policy
-                    </Link>
-                    .
-                  </p>
-                </form>
-              )}
-            </div>
-          </motion.div>
         </div>
       </div>
 
