@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "@/components/store/NavBar";
 import { Footer } from "@/components/store/Footer";
@@ -15,11 +15,15 @@ import { JsonLd } from "@/components/JsonLd";
 import { SITE, absoluteUrl } from "@/lib/seo";
 import { organizationSchema, websiteSchema } from "@/lib/structured-data";
 
-const cormorant = Cormorant_Garamond({
+// Fraunces — a high-contrast editorial serif (optical-size axis gives it real
+// drama at display sizes while staying soft in body copy), the font
+// consistently cited as the current "sophisticated luxury fashion" pick over
+// the more generic Playfair Display. Replaces Cormorant Garamond site-wide.
+const fraunces = Fraunces({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
   style: ["normal", "italic"],
-  variable: "--font-cormorant",
+  variable: "--font-fraunces",
   display: "swap",
 });
 
@@ -95,7 +99,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${cormorant.variable} ${inter.variable}`}
+      className={`${fraunces.variable} ${inter.variable}`}
       style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}
     >
       <body className="antialiased bg-brand-ivory text-brand-ink w-full overflow-x-clip">

@@ -216,8 +216,6 @@ export default async function HomePage() {
         className="bg-brand-ivory"
       />
 
-      <BrandStory />
-
       {data.collectionRails.map((rail, i) => (
         <ProductRail
           key={rail.tile.id}
@@ -240,6 +238,11 @@ export default async function HomePage() {
       />
 
       <StatementBand />
+
+      {/* Closing beat — the one place a contained (not full-bleed) editorial
+          photo belongs: after the last rail, so the page ends on the house's
+          own story rather than another row of cards. */}
+      <BrandStory />
     </>
   );
 }
