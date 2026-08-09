@@ -35,6 +35,18 @@ interface ProductCardProps {
 const SIZES_DEFAULT = "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 72vw";
 const SIZES_COMPACT = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 60vw";
 
+/**
+ * Units left across every size before the card calls a piece scarce.
+ *
+ * Card-level scarcity is about the *piece* being almost gone, not one size.
+ * The old test — "any size at five or fewer" — is true of essentially every
+ * product in a couture catalogue, where a size rarely runs past three units,
+ * so the chip rendered on all of them at once and stopped carrying any
+ * information. Per-size warnings still belong on the PDP, where the shopper is
+ * choosing a size (see `toAvailability` in @/lib/inventory).
+ */
+const LOW_STOCK_UNITS = 3;
+
 type BadgeTone = "sale" | "solid" | "quiet" | "alert";
 
 /** Square chips only — wine on a pale wash for sale, never a bright red pill. */
@@ -79,18 +91,23 @@ export function ProductCard({
   const discount = discountPercent(price, mrp);
 
   const isSoldOut = product.skus.length > 0 && product.skus.every((s) => s.stock === 0);
-  const isLowStock = !isSoldOut && product.skus.some((s) => s.stock > 0 && s.stock <= 5);
+  const unitsLeft = product.skus.reduce((n, s) => n + Math.max(s.stock, 0), 0);
+  const isLowStock = !isSoldOut && unitsLeft > 0 && unitsLeft <= LOW_STOCK_UNITS;
 
-  // Listed in priority order, then capped at two — which is what guarantees the
-  // discount and SOLD OUT chips survive when a product qualifies for more.
-  const badges: CardBadge[] = [
-    discount !== null ? { label: `${discount}% off`, tone: "sale" as const } : null,
+  // Listed in priority order, then capped at ONE. A card is a photograph, a
+  // name and a price; a stack of chips over the artwork (NEW above LOW STOCK
+  // above a discount, on every card in the rail) reads as noise, not urgency.
+  // The order is what guarantees the chip that survives is the one that most
+  // changes the decision.
+  // Availability outranks price, because the price row below already carries
+  // the markdown as a struck-through MRP — the chip would only be saying it
+  // twice — while nothing else on the card says a piece is gone or nearly gone.
+  const badge: CardBadge | undefined = [
     isSoldOut ? { label: "Sold out", tone: "solid" as const } : null,
-    product.tags.includes("new") ? { label: "New", tone: "quiet" as const } : null,
     isLowStock ? { label: "Low stock", tone: "alert" as const } : null,
-  ]
-    .filter((b): b is CardBadge => b !== null)
-    .slice(0, 2);
+    discount !== null ? { label: `${discount}% off`, tone: "sale" as const } : null,
+    product.tags.includes("new") ? { label: "New", tone: "quiet" as const } : null,
+  ].find((b): b is CardBadge => b !== null);
 
   const sizes = compact ? SIZES_COMPACT : SIZES_DEFAULT;
   const href = `/products/${product.slug}`;
@@ -162,21 +179,16 @@ export function ProductCard({
           </div>
         )}
 
-        {badges.length > 0 && (
-          <div className="pointer-events-none absolute top-3 left-3 flex max-w-[72%] flex-col items-start gap-1">
-            {badges.map((b) => (
-              <span
-                key={b.label}
-                className={cn(
-                  "inline-flex items-center rounded-none px-1.5 py-1 font-sans leading-none font-medium tracking-[0.14em] uppercase",
-                  "text-[10px] sm:text-[9px]",
-                  BADGE_TONE[b.tone]
-                )}
-              >
-                {b.label}
-              </span>
-            ))}
-          </div>
+        {badge && (
+          <span
+            className={cn(
+              "pointer-events-none absolute top-3 left-3 inline-flex max-w-[72%] items-center rounded-none px-1.5 py-1 font-sans leading-none font-medium tracking-[0.14em] uppercase",
+              "text-[10px] sm:text-[9px]",
+              BADGE_TONE[badge.tone]
+            )}
+          >
+            {badge.label}
+          </span>
         )}
       </Link>
 

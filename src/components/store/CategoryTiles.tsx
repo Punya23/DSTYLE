@@ -9,8 +9,6 @@ export interface CategoryTile {
   id: string;
   name: string;
   slug: string;
-  /** One-line editorial descriptor under the name. */
-  tagline?: string | null;
   /** Collection banner. Falls back to a tonal placeholder when absent. */
   image?: string | null;
 }
@@ -20,7 +18,6 @@ export interface CategoryTilesProps {
   eyebrow?: string;
   /** Omit to render the row with no header at all. */
   title?: string;
-  subtitle?: string;
   href?: string;
   linkLabel?: string;
   /** Eager-load the tile images — only worth it if the row is above the fold. */
@@ -33,12 +30,16 @@ export interface CategoryTilesProps {
  * mobile and 4-up from lg. This is the shopper's first fork in the road, so it
  * sits directly under the hero and every tile is a single link target — the
  * "Explore" cue is a span, not a nested anchor.
+ *
+ * A tile is a photograph and a name. It used to carry `Collection.description`
+ * as well — long-form marketing copy, clamped to two lines, four of them side
+ * by side — which read as a paragraph grid rather than four doors. The name is
+ * the whole label now, and it is sized to be read at a glance.
  */
 export function CategoryTiles({
   tiles,
   eyebrow,
   title,
-  subtitle,
   href,
   linkLabel,
   priority = false,
@@ -53,7 +54,6 @@ export function CategoryTiles({
           <SectionHeader
             eyebrow={eyebrow}
             title={title}
-            subtitle={subtitle}
             href={href}
             linkLabel={linkLabel}
           />
@@ -87,19 +87,10 @@ export function CategoryTiles({
                   <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-ink/75 via-brand-ink/15 to-transparent" />
 
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 lg:p-6">
-                    <h3 className="font-display not-italic text-[1.35rem] leading-none text-white lg:text-[1.65rem]">
+                    <h3 className="font-display not-italic text-[1.75rem] leading-[0.95] text-white lg:text-[2.25rem]">
                       {tile.name}
                     </h3>
-                    {/* line-clamp-2 because this is fed from
-                        `Collection.description`, which is long-form marketing
-                        copy — unclamped it spills over the artwork and swamps
-                        the tile on mobile. */}
-                    {tile.tagline && (
-                      <p className="mt-2 line-clamp-2 font-sans text-[11px] leading-snug text-white/65">
-                        {tile.tagline}
-                      </p>
-                    )}
-                    <span className="micro-label mt-4 inline-block border-b border-white/30 pb-1 text-brand-champagne transition-colors duration-300 group-hover:border-brand-champagne">
+                    <span className="micro-label mt-3 inline-block border-b border-white/30 pb-1 text-brand-champagne transition-colors duration-300 group-hover:border-brand-champagne">
                       Explore
                     </span>
                   </div>

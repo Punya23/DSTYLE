@@ -12,7 +12,6 @@ export interface ProductRailProps {
   products: Product[];
   eyebrow?: string;
   title: string;
-  subtitle?: string;
   /** Renders the header's "shop all" link. Omit to render no link. */
   href?: string;
   linkLabel?: string;
@@ -33,7 +32,6 @@ export function ProductRail({
   products,
   eyebrow,
   title,
-  subtitle,
   href,
   linkLabel,
   priority = false,
@@ -88,7 +86,6 @@ export function ProductRail({
           <SectionHeader
             eyebrow={eyebrow}
             title={title}
-            subtitle={subtitle}
             href={href}
             linkLabel={linkLabel}
             className="min-w-0 flex-1"

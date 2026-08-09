@@ -23,10 +23,10 @@ const RAIL_SIZE = 12;
 
 /** Shown when the database is unreachable, alongside POC_PRODUCTS. */
 const FALLBACK_TILES: CategoryTile[] = [
-  { id: "c1", name: "Bridal", slug: "bridal", tagline: "For the forever moment" },
-  { id: "c2", name: "Festive", slug: "festive", tagline: "Celebrate in colour" },
-  { id: "c3", name: "Cocktail", slug: "cocktail", tagline: "Evening glamour" },
-  { id: "c4", name: "Pret", slug: "pret", tagline: "Everyday luxury" },
+  { id: "c1", name: "Bridal", slug: "bridal" },
+  { id: "c2", name: "Festive", slug: "festive" },
+  { id: "c3", name: "Cocktail", slug: "cocktail" },
+  { id: "c4", name: "Pret", slug: "pret" },
 ].map((c) => ({ ...c, image: COLLECTION_BANNERS[c.slug] ?? null }));
 
 interface HomeData {
@@ -41,11 +41,12 @@ function fetchHomeRecords() {
     prisma.collection.findMany({
       where: { isVisible: true },
       orderBy: { sortOrder: "asc" },
+      // No `description` — the homepage tiles and rails are headline-only, so
+      // the long-form collection copy is never read here.
       select: {
         id: true,
         name: true,
         slug: true,
-        description: true,
         bannerImage: true,
       },
     }),
@@ -91,7 +92,6 @@ async function getHomeData(): Promise<HomeData> {
     id: c.id,
     name: c.name,
     slug: c.slug,
-    tagline: c.description,
     image: c.bannerImage ?? COLLECTION_BANNERS[c.slug] ?? null,
   }));
 
@@ -176,11 +176,13 @@ export default async function HomePage() {
         subline="Indian Couture · Bridal · Festive · Pret"
       />
 
+      {/* Section copy is deliberately eyebrow + headline only. Every sentence
+          that used to sit under these titles said what the photographs
+          underneath already say. */}
       <CategoryTiles
         tiles={data.tiles}
         eyebrow="Curated worlds"
         title="Shop by occasion"
-        subtitle="One atelier, every occasion — start where the moment takes you."
         href="/collections"
         linkLabel="All collections"
         className="bg-brand-paper"
@@ -190,7 +192,6 @@ export default async function HomePage() {
         products={data.newIn}
         eyebrow="Just landed"
         title="New in"
-        subtitle="The latest pieces off the embroidery frame."
         href="/collections?tags=new"
         className="bg-brand-paper pt-0"
       />
@@ -211,7 +212,6 @@ export default async function HomePage() {
         products={data.featured}
         eyebrow="Curated for you"
         title="The Edit"
-        subtitle="The pieces our atelier keeps reaching for this season."
         href="/collections"
         className="bg-brand-ivory"
       />
@@ -222,7 +222,6 @@ export default async function HomePage() {
           products={rail.products}
           eyebrow="The collection"
           title={rail.tile.name}
-          subtitle={rail.tile.tagline ?? undefined}
           href={`/collections/${rail.tile.slug}`}
           className={i % 2 === 0 ? "bg-brand-paper" : "bg-brand-ivory"}
         />

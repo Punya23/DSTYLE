@@ -4,9 +4,8 @@ import { cn } from "@/lib/utils";
 export interface SectionHeaderProps {
   /** Gold micro-label above the title. */
   eyebrow?: string;
-  /** Upright display-3 — italic is reserved for the hero and brand-story. */
+  /** Upright display-2 — italic is reserved for the hero and brand-story. */
   title: string;
-  subtitle?: string;
   /** Renders the baseline-aligned "shop all" link. Omit to render no link. */
   href?: string;
   linkLabel?: string;
@@ -14,14 +13,18 @@ export interface SectionHeaderProps {
 }
 
 /**
- * The one section-header pattern for commerce surfaces: title + subtitle
+ * The one section-header pattern for commerce surfaces: eyebrow + title
  * stacked left, an underlined link baseline-aligned right, stacking on mobile.
+ *
+ * Deliberately headline-only — there is no subtitle slot. A sentence of prose
+ * under every section title is what turned this page into a wall of copy; the
+ * photography carries the mood and the title carries the meaning.
+ *
  * Server Component — wrap it in <Reveal> at the call site if you want motion.
  */
 export function SectionHeader({
   eyebrow,
   title,
-  subtitle,
   href,
   linkLabel = "Shop all",
   className,
@@ -35,8 +38,7 @@ export function SectionHeader({
     >
       <div className="max-w-xl">
         {eyebrow && <span className="eyebrow block mb-3">{eyebrow}</span>}
-        <h2 className="display-3 not-italic text-brand-ink text-balance">{title}</h2>
-        {subtitle && <p className="body-copy mt-2.5 text-pretty">{subtitle}</p>}
+        <h2 className="display-2 not-italic text-brand-ink text-balance">{title}</h2>
       </div>
 
       {href && (

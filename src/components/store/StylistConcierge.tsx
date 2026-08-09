@@ -33,6 +33,30 @@ const COLLECTION_LABEL: Record<string, string> = {
   bridal: "Bridal", festive: "Festive", cocktail: "Cocktail", pret: "Pret",
 };
 
+const NUDGE_SEEN_KEY = "dstyle-stylist-seen";
+/** How long the page is left alone before the stylist introduces itself. */
+const NUDGE_SHOW_MS = 4500;
+/** How long the bubble stays up before it retires itself. */
+const NUDGE_LIFETIME_MS = 6500;
+
+/** localStorage throws in private mode — a nudge is never worth a crash. */
+function readStylistSeen(): boolean {
+  try {
+    return localStorage.getItem(NUDGE_SEEN_KEY) !== null;
+  } catch {
+    // Storage unavailable: show the nudge once per load and move on.
+    return false;
+  }
+}
+
+function markStylistSeen() {
+  try {
+    localStorage.setItem(NUDGE_SEEN_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
 function matchIntent(text: string): Occasion {
   const t = text.toLowerCase();
   if (/(brid|dulhan|my wedding|wedding day|shaadi|lehenga for my)/.test(t)) return OCCASIONS[0];
@@ -63,6 +87,8 @@ export function StylistConcierge() {
   const [input, setInput] = useState("");
   const [showChips, setShowChips] = useState(true);
   const [nudge, setNudge] = useState(false);
+  /** Set once the nudge has had its turn — it never comes back after that. */
+  const [nudgeDone, setNudgeDone] = useState(false);
   const [voiceHint, setVoiceHint] = useState(false);
   const [overHero, setOverHero] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -87,6 +113,9 @@ export function StylistConcierge() {
     return () => io.disconnect();
   }, [pathname]);
 
+  /** The floating trigger — and so the nudge that hangs off it — is on screen. */
+  const triggerVisible = !overHero && !overlayOpen;
+
   // Fetch catalogue lazily
   useEffect(() => {
     if (stylistOpen && products.length === 0) {
@@ -94,13 +123,35 @@ export function StylistConcierge() {
     }
   }, [stylistOpen, products.length]);
 
-  // First-visit nudge
+  // First-visit nudge. It floats over whatever the shopper has scrolled to, so
+  // it introduces itself once and then retires on its own — left up (the old
+  // behaviour: dismissed only by a click) it sat across the product rails for
+  // the rest of the session. The sparkle button remains the permanent way in.
+  //
+  // Both timers are gated on the trigger actually being on screen. The bubble
+  // hangs off that button, so a countdown running while it is hidden (a shopper
+  // still reading the hero, or with the cart drawer open) would burn through the
+  // nudge's whole life and mark it seen without it ever having been rendered.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (localStorage.getItem("dstyle-stylist-seen")) return;
-    const t = setTimeout(() => setNudge(true), 4500);
-    return () => clearTimeout(t);
-  }, []);
+    if (!triggerVisible || nudgeDone || readStylistSeen()) return;
+    const show = setTimeout(() => setNudge(true), NUDGE_SHOW_MS);
+    return () => clearTimeout(show);
+  }, [triggerVisible, nudgeDone]);
+
+  // Retire it once it has had its moment — measured in time actually on screen,
+  // so opening the cart or scrolling back to the hero pauses the clock rather
+  // than spending it on a bubble nobody can see.
+  const nudgeVisible = nudge && triggerVisible && !stylistOpen;
+  useEffect(() => {
+    if (!nudgeVisible) return;
+    const hide = setTimeout(() => {
+      setNudge(false);
+      setNudgeDone(true);
+      markStylistSeen();
+    }, NUDGE_LIFETIME_MS);
+    return () => clearTimeout(hide);
+  }, [nudgeVisible]);
 
   // Greeting on first open (skipped when opened with a seeded question)
   if (stylistOpen && messages.length === 0 && !stylistSeed) {
@@ -119,7 +170,8 @@ export function StylistConcierge() {
 
   const dismissNudge = () => {
     setNudge(false);
-    localStorage.setItem("dstyle-stylist-seen", "1");
+    setNudgeDone(true);
+    markStylistSeen();
   };
 
   const handleOpen = () => {
@@ -245,7 +297,7 @@ export function StylistConcierge() {
           in view; sits in the natural bottom-right corner everywhere, and only
           lifts clear of the mobile "Select Size" bar on product pages. */}
       <AnimatePresence>
-        {!overHero && !overlayOpen && (
+        {triggerVisible && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -270,7 +322,7 @@ export function StylistConcierge() {
                     Your stylist
                   </span>
                   <span className="block text-[13px] leading-snug font-sans">
-                    What are you exploring today? Let me guide you ✨
+                    What are you dressing for?
                   </span>
                 </motion.button>
               )}

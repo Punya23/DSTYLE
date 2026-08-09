@@ -56,7 +56,10 @@ export function HeroSection({
   slides = DEFAULT_SLIDES,
   headline = "The House of Dstyle",
   subline = "Indian Couture · Bridal · Festive · Pret",
-  tagline = "Hand-embroidered in our atelier — worn for the moments that matter most.",
+  // One short line, not a paragraph: the headline and the photograph are the
+  // message, and "worn for the moments that matter" was already being said
+  // again by the statement band further down the page.
+  tagline = "Hand-embroidered, one piece at a time.",
   slideDuration = 6,
 }: HeroSectionProps) {
   const heroRef = useRef<HTMLDivElement>(null);

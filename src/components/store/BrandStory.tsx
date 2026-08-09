@@ -13,21 +13,16 @@ export function BrandStory() {
           <h2 className="display-2 text-brand-ink mt-4 mb-7 text-balance">
             Crafted with intention, worn with grace.
           </h2>
-          <div className="space-y-5 max-w-[480px] text-[15px] leading-relaxed text-brand-ink-soft text-pretty">
-            <p>
-              Founded by designer Dipti Shah, Dstyle is an exploration of contemporary
-              Indian femininity. Each piece is born from a deep reverence for craft —
-              hand-embroidered, hand-dyed, and finished with the care of a love letter.
-            </p>
-            <p>
-              From bridal couture to festive pret, our collections are made for women who
-              carry their heritage lightly and their dreams fiercely.
-            </p>
-          </div>
+          {/* One sentence. The full version of this story lives on /about —
+              the homepage only has to make someone want to read it. */}
+          <p className="max-w-[440px] text-[15px] leading-relaxed text-brand-ink-soft text-pretty">
+            Founded by designer Dipti Shah — hand-embroidered, hand-dyed, made for women
+            who carry their heritage lightly.
+          </p>
           <div className="mt-9">
             <Link href="/about">
               <Button variant="outline" size="md">
-                Discover Our Story
+                Our Story
               </Button>
             </Link>
           </div>
