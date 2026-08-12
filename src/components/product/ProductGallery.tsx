@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import Image from "next/image";
-import { isVideoUrl } from "@/lib/media";
+import { isVideoUrl, videoUrl, videoPosterUrl } from "@/lib/media";
 import { MediaPlaceholder } from "@/components/store/MediaPlaceholder";
 import { ViewTransition } from "@/lib/view-transition";
 import { VIDEO_KIND_LABELS } from "@/lib/product-schema";
@@ -46,8 +46,8 @@ function GalleryMedia({
   if (isVideoUrl(url)) {
     return (
       <video
-        src={url}
-        poster={poster}
+        src={videoUrl(url)}
+        poster={videoPosterUrl(url, poster)}
         autoPlay
         muted
         loop
@@ -99,7 +99,9 @@ export function ProductGallery({
           url: video.url,
           alt: `${productName} — ${VIDEO_KIND_LABELS[video.kind]}`,
           isVideo: true,
-          poster: video.posterUrl ?? undefined,
+          // Falls back to a Cloudinary-derived first frame, so the thumbnail
+          // strip never has to download video metadata just to draw a square.
+          poster: videoPosterUrl(video.url, video.posterUrl),
           label: VIDEO_KIND_LABELS[video.kind],
         })),
     ],
@@ -271,7 +273,7 @@ export function ProductGallery({
                       />
                     ) : (
                       <video
-                        src={slide.url}
+                        src={videoUrl(slide.url)}
                         muted
                         playsInline
                         preload="metadata"

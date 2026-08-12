@@ -142,6 +142,21 @@ if (googleConfigured) {
   );
 }
 
+/**
+ * How long a token's `role` may be trusted before it is re-read from the
+ * database. See the note in the `jwt` callback for why this is bounded rather
+ * than checked every time.
+ */
+const ROLE_REFRESH_INTERVAL_MS = 60_000;
+
+function needsRoleRefresh(token: Record<string, unknown>): boolean {
+  const last = token.roleCheckedAt;
+  // Tokens minted before this field existed have no timestamp — refresh those
+  // on their next use rather than trusting them indefinitely.
+  if (typeof last !== "number") return true;
+  return Date.now() - last >= ROLE_REFRESH_INTERVAL_MS;
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: DstyleAuthAdapter(),
   providers,
@@ -177,6 +192,42 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const u = user as { id?: string; role?: Role };
         if (u.id) token.id = u.id;
         if (u.role) token.role = u.role;
+      } else if (token.id && needsRoleRefresh(token)) {
+        // A JWT session has nothing server-side to revoke: the role baked in at
+        // sign-in is what proxy.ts, the admin layout and every /api/admin
+        // handler trust, so demoting a staff member in the database used to
+        // leave their existing token asserting ADMIN until it expired — up to
+        // 30 days. Re-reading it here is what makes revocation possible at all.
+        //
+        // The throttle is not an optimisation detail, it is what makes this
+        // affordable: @auth/core re-runs this callback on *every* session read
+        // (lib/actions/session.ts — the JWT branch has no `updateAge` throttle,
+        // unlike the database branch), and `auth()` is called from 54 places
+        // including proxy.ts and the hot signed-in endpoints. Unthrottled, every
+        // authenticated request would take a Prisma pool slot to re-read one
+        // column, competing with catalogue queries for the 20 slots each
+        // instance has. Bounding it to once a minute trades instant revocation
+        // for revocation-within-a-minute, which is the right side of that trade
+        // for a role that changes a handful of times a year.
+        try {
+          const fresh = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true },
+          });
+          // A missing row means the account was deleted, which is the strongest
+          // revocation there is — end the session rather than let a deleted
+          // admin keep the role their cookie still carries. Returning null
+          // makes @auth/core clear the session cookie.
+          if (!fresh) return null;
+          token.role = fresh.role;
+          token.roleCheckedAt = Date.now();
+        } catch (err) {
+          // A database blip must not sign the whole site out mid-checkout. Fall
+          // back to the token we already hold: one more request on a stale role
+          // is a far cheaper failure than a mass logout, and the next call
+          // retries the lookup anyway.
+          console.error("[auth] role refresh failed, keeping existing token:", err);
+        }
       }
 
       // Saving the account profile calls `useSession().update({ name })`; without

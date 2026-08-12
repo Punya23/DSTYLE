@@ -51,6 +51,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.171.0",
+    "autocannon": "^8.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",

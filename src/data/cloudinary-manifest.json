@@ -1,0 +1,490 @@
+{
+  "/brand/story.jpg": {
+    "publicId": "dstyle/brand/story",
+    "kind": "image",
+    "bytes": 269419,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478838
+  },
+  "/collections/bridal.jpg": {
+    "publicId": "dstyle/collections/bridal",
+    "kind": "image",
+    "bytes": 322611,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478839
+  },
+  "/collections/cocktail.jpg": {
+    "publicId": "dstyle/collections/cocktail",
+    "kind": "image",
+    "bytes": 283445,
+    "width": 1080,
+    "height": 1433,
+    "version": 1786478841
+  },
+  "/collections/festive.jpg": {
+    "publicId": "dstyle/collections/festive",
+    "kind": "image",
+    "bytes": 142671,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478842
+  },
+  "/collections/pret.jpg": {
+    "publicId": "dstyle/collections/pret",
+    "kind": "image",
+    "bytes": 205467,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478843
+  },
+  "/editorial/01.jpg": {
+    "publicId": "dstyle/editorial/01",
+    "kind": "image",
+    "bytes": 294946,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478844
+  },
+  "/editorial/02.jpg": {
+    "publicId": "dstyle/editorial/02",
+    "kind": "image",
+    "bytes": 307595,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478845
+  },
+  "/editorial/03.jpg": {
+    "publicId": "dstyle/editorial/03",
+    "kind": "image",
+    "bytes": 340329,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478847
+  },
+  "/editorial/04.jpg": {
+    "publicId": "dstyle/editorial/04",
+    "kind": "image",
+    "bytes": 142671,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478848
+  },
+  "/editorial/05.jpg": {
+    "publicId": "dstyle/editorial/05",
+    "kind": "image",
+    "bytes": 176987,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478849
+  },
+  "/editorial/06.jpg": {
+    "publicId": "dstyle/editorial/06",
+    "kind": "image",
+    "bytes": 322611,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478850
+  },
+  "/hero/cobalt-saree.jpg": {
+    "publicId": "dstyle/hero/cobalt-saree",
+    "kind": "image",
+    "bytes": 88581,
+    "width": 1200,
+    "height": 1224,
+    "version": 1786478852
+  },
+  "/hero/hero.mp4": {
+    "publicId": "dstyle/hero/hero",
+    "kind": "video",
+    "bytes": 5160390,
+    "width": 720,
+    "height": 1280,
+    "version": 1786477274
+  },
+  "/lookbook/01.jpg": {
+    "publicId": "dstyle/lookbook/01",
+    "kind": "image",
+    "bytes": 384645,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478855
+  },
+  "/lookbook/02.jpg": {
+    "publicId": "dstyle/lookbook/02",
+    "kind": "image",
+    "bytes": 360787,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478857
+  },
+  "/lookbook/03.jpg": {
+    "publicId": "dstyle/lookbook/03",
+    "kind": "image",
+    "bytes": 176987,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478858
+  },
+  "/lookbook/04.jpg": {
+    "publicId": "dstyle/lookbook/04",
+    "kind": "image",
+    "bytes": 224320,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478859
+  },
+  "/lookbook/05.jpg": {
+    "publicId": "dstyle/lookbook/05",
+    "kind": "image",
+    "bytes": 283445,
+    "width": 1080,
+    "height": 1433,
+    "version": 1786478860
+  },
+  "/lookbook/06.jpg": {
+    "publicId": "dstyle/lookbook/06",
+    "kind": "image",
+    "bytes": 152213,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478861
+  },
+  "/products/auspicious-hue-lehenga/01.jpg": {
+    "publicId": "dstyle/products/auspicious-hue-lehenga/01",
+    "kind": "image",
+    "bytes": 142671,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478863
+  },
+  "/products/auspicious-hue-lehenga/02.jpg": {
+    "publicId": "dstyle/products/auspicious-hue-lehenga/02",
+    "kind": "image",
+    "bytes": 360787,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478864
+  },
+  "/products/blush-sequin-floral-lehenga/01.jpg": {
+    "publicId": "dstyle/products/blush-sequin-floral-lehenga/01",
+    "kind": "image",
+    "bytes": 83705,
+    "width": 787,
+    "height": 1400,
+    "version": 1786478865
+  },
+  "/products/champagne-rose-embellished-set/01.jpg": {
+    "publicId": "dstyle/products/champagne-rose-embellished-set/01",
+    "kind": "image",
+    "bytes": 142424,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478866
+  },
+  "/products/champagne-rose-embellished-set/02.jpg": {
+    "publicId": "dstyle/products/champagne-rose-embellished-set/02",
+    "kind": "image",
+    "bytes": 249913,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478868
+  },
+  "/products/citrine-floral-anarkali-set/01.jpg": {
+    "publicId": "dstyle/products/citrine-floral-anarkali-set/01",
+    "kind": "image",
+    "bytes": 223758,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478869
+  },
+  "/products/citrine-floral-anarkali-set/02.jpg": {
+    "publicId": "dstyle/products/citrine-floral-anarkali-set/02",
+    "kind": "image",
+    "bytes": 190677,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478870
+  },
+  "/products/coral-silk-drape-set/01.jpg": {
+    "publicId": "dstyle/products/coral-silk-drape-set/01",
+    "kind": "image",
+    "bytes": 141316,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478871
+  },
+  "/products/emerald-anarkali/01.jpg": {
+    "publicId": "dstyle/products/emerald-anarkali/01",
+    "kind": "image",
+    "bytes": 283445,
+    "width": 1080,
+    "height": 1433,
+    "version": 1786478873
+  },
+  "/products/emerald-anarkali/02.jpg": {
+    "publicId": "dstyle/products/emerald-anarkali/02",
+    "kind": "image",
+    "bytes": 262082,
+    "width": 1080,
+    "height": 1433,
+    "version": 1786478874
+  },
+  "/products/emerald-anarkali/03.jpg": {
+    "publicId": "dstyle/products/emerald-anarkali/03",
+    "kind": "image",
+    "bytes": 287886,
+    "width": 1080,
+    "height": 1433,
+    "version": 1786478875
+  },
+  "/products/emerald-mirrorwork-shirt-dress/01.jpg": {
+    "publicId": "dstyle/products/emerald-mirrorwork-shirt-dress/01",
+    "kind": "image",
+    "bytes": 85800,
+    "width": 787,
+    "height": 1400,
+    "version": 1786478877
+  },
+  "/products/festive-lehenga.mp4": {
+    "publicId": "dstyle/products/festive-lehenga",
+    "kind": "video",
+    "bytes": 7845575,
+    "width": 720,
+    "height": 1280,
+    "version": 1786477303
+  },
+  "/products/gold-zardozi-bridal-lehenga/01.jpg": {
+    "publicId": "dstyle/products/gold-zardozi-bridal-lehenga/01",
+    "kind": "image",
+    "bytes": 137744,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478880
+  },
+  "/products/gold-zardozi-bridal-lehenga/02.jpg": {
+    "publicId": "dstyle/products/gold-zardozi-bridal-lehenga/02",
+    "kind": "image",
+    "bytes": 138139,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478882
+  },
+  "/products/gold-zardozi-bridal-lehenga/03.jpg": {
+    "publicId": "dstyle/products/gold-zardozi-bridal-lehenga/03",
+    "kind": "image",
+    "bytes": 182229,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478883
+  },
+  "/products/gold-zardozi-bridal-lehenga/04.jpg": {
+    "publicId": "dstyle/products/gold-zardozi-bridal-lehenga/04",
+    "kind": "image",
+    "bytes": 174642,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478884
+  },
+  "/products/gold-zardozi-bridal-lehenga/05.jpg": {
+    "publicId": "dstyle/products/gold-zardozi-bridal-lehenga/05",
+    "kind": "image",
+    "bytes": 187599,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478885
+  },
+  "/products/ivory-sequin-cutout-set/01.jpg": {
+    "publicId": "dstyle/products/ivory-sequin-cutout-set/01",
+    "kind": "image",
+    "bytes": 72134,
+    "width": 787,
+    "height": 1400,
+    "version": 1786478887
+  },
+  "/products/ivory-zardozi-saree/01.jpg": {
+    "publicId": "dstyle/products/ivory-zardozi-saree/01",
+    "kind": "image",
+    "bytes": 224320,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478890
+  },
+  "/products/ivory-zardozi-saree/02.jpg": {
+    "publicId": "dstyle/products/ivory-zardozi-saree/02",
+    "kind": "image",
+    "bytes": 152213,
+    "width": 1080,
+    "height": 1440,
+    "version": 1786478891
+  },
+  "/products/peach-striped-embroidered-set/01.jpg": {
+    "publicId": "dstyle/products/peach-striped-embroidered-set/01",
+    "kind": "image",
+    "bytes": 114090,
+    "width": 787,
+    "height": 1400,
+    "version": 1786478892
+  },
+  "/products/rose-gold-sharara/01.jpg": {
+    "publicId": "dstyle/products/rose-gold-sharara/01",
+    "kind": "image",
+    "bytes": 262082,
+    "width": 1080,
+    "height": 1433,
+    "version": 1786478894
+  },
+  "/products/rose-gold-sharara/02.jpg": {
+    "publicId": "dstyle/products/rose-gold-sharara/02",
+    "kind": "image",
+    "bytes": 287886,
+    "width": 1080,
+    "height": 1433,
+    "version": 1786478895
+  },
+  "/products/royal-blue-embellished-saree/01.jpg": {
+    "publicId": "dstyle/products/royal-blue-embellished-saree/01",
+    "kind": "image",
+    "bytes": 170218,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478896
+  },
+  "/products/royal-blue-embellished-saree/02.jpg": {
+    "publicId": "dstyle/products/royal-blue-embellished-saree/02",
+    "kind": "image",
+    "bytes": 163866,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478898
+  },
+  "/products/royal-blue-embellished-saree/03.jpg": {
+    "publicId": "dstyle/products/royal-blue-embellished-saree/03",
+    "kind": "image",
+    "bytes": 140878,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478899
+  },
+  "/products/royal-blue-embellished-saree/04.jpg": {
+    "publicId": "dstyle/products/royal-blue-embellished-saree/04",
+    "kind": "image",
+    "bytes": 131175,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478901
+  },
+  "/products/royal-blue-embellished-saree/05.jpg": {
+    "publicId": "dstyle/products/royal-blue-embellished-saree/05",
+    "kind": "image",
+    "bytes": 135849,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478902
+  },
+  "/products/royal-blue-embellished-saree/06.jpg": {
+    "publicId": "dstyle/products/royal-blue-embellished-saree/06",
+    "kind": "image",
+    "bytes": 147717,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478903
+  },
+  "/products/sage-pearl-coord/01.jpg": {
+    "publicId": "dstyle/products/sage-pearl-coord/01",
+    "kind": "image",
+    "bytes": 222428,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478904
+  },
+  "/products/sage-pearl-coord/02.jpg": {
+    "publicId": "dstyle/products/sage-pearl-coord/02",
+    "kind": "image",
+    "bytes": 338476,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478905
+  },
+  "/products/sage-pearl-coord/03.jpg": {
+    "publicId": "dstyle/products/sage-pearl-coord/03",
+    "kind": "image",
+    "bytes": 264402,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478907
+  },
+  "/products/sage-pearl-coord/04.jpg": {
+    "publicId": "dstyle/products/sage-pearl-coord/04",
+    "kind": "image",
+    "bytes": 292461,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478908
+  },
+  "/products/sage-pearl-coord/05.jpg": {
+    "publicId": "dstyle/products/sage-pearl-coord/05",
+    "kind": "image",
+    "bytes": 273344,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478909
+  },
+  "/products/sand-organza-dupatta/01.jpg": {
+    "publicId": "dstyle/products/sand-organza-dupatta/01",
+    "kind": "image",
+    "bytes": 205467,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478910
+  },
+  "/products/sand-organza-dupatta/02.jpg": {
+    "publicId": "dstyle/products/sand-organza-dupatta/02",
+    "kind": "image",
+    "bytes": 176987,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478912
+  },
+  "/products/sand-organza-dupatta/03.jpg": {
+    "publicId": "dstyle/products/sand-organza-dupatta/03",
+    "kind": "image",
+    "bytes": 269419,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478913
+  },
+  "/products/tassel-work-lehenga/01.jpg": {
+    "publicId": "dstyle/products/tassel-work-lehenga/01",
+    "kind": "image",
+    "bytes": 340329,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478914
+  },
+  "/products/tassel-work-lehenga/02.jpg": {
+    "publicId": "dstyle/products/tassel-work-lehenga/02",
+    "kind": "image",
+    "bytes": 384645,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478916
+  },
+  "/products/tassel-work-lehenga/03.jpg": {
+    "publicId": "dstyle/products/tassel-work-lehenga/03",
+    "kind": "image",
+    "bytes": 322611,
+    "width": 1080,
+    "height": 1350,
+    "version": 1786478917
+  },
+  "/products/teal-mirror-drape/01.jpg": {
+    "publicId": "dstyle/products/teal-mirror-drape/01",
+    "kind": "image",
+    "bytes": 100739,
+    "width": 1200,
+    "height": 1800,
+    "version": 1786478919
+  }
+}

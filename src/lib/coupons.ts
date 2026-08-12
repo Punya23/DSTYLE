@@ -4,9 +4,13 @@ import { round2, type AppliedCoupon, type QuoteLine } from "@/lib/pricing";
 
 /**
  * Coupon engine. Every rule the admin can configure — window, usage caps,
- * minimum order, catalogue scope — is enforced here, and this same function
- * runs again inside the order transaction. A code therefore cannot be
- * over-redeemed by two checkouts racing each other.
+ * minimum order, catalogue scope — is evaluated here, at quote time, so the
+ * shopper is told why a code was refused before they reach the payment sheet.
+ *
+ * These checks are advisory, not authoritative: they run outside any
+ * transaction, so two checkouts racing each other both pass them. The total
+ * usage cap is enforced for real by the conditional UPDATE in `redeemCoupon`,
+ * which runs inside the order transaction after payment.
  */
 
 /** Works with both the top-level client and an interactive transaction. */
@@ -227,9 +231,27 @@ export async function evaluateCoupon({
 }
 
 /**
- * Record a redemption once an order is actually paid. Idempotent via the
- * unique (couponId, orderId) pair, so the client verify call and the Razorpay
- * webhook can both invoke it without double-counting `usageCount`.
+ * Record a redemption once an order is actually paid.
+ *
+ * Two separate guarantees, and they are not the same thing:
+ *
+ * 1. **Idempotent** via the unique `(couponId, orderId)` pair, so the client
+ *    verify call and the Razorpay webhook can both invoke it for one order
+ *    without double-counting.
+ *
+ * 2. **Capped**, which it previously was not. The header comment on this module
+ *    used to claim `evaluateCoupon` "runs again inside the order transaction" —
+ *    it does not. It runs once, at quote time, outside any transaction, so N
+ *    shoppers could all pass the `usageCount >= usageLimit` check on a
+ *    single-use launch code and all redeem it. The increment below is now the
+ *    gate: a raw conditional UPDATE, because Prisma's query API cannot compare
+ *    two columns of the same row, and because Postgres re-evaluates the WHERE
+ *    clause after taking the row lock — which is exactly the serialisation this
+ *    needs under the default READ COMMITTED isolation.
+ *
+ * Returns `false` when the redemption did not happen. The caller decides what
+ * that means: the customer has already been charged by this point, so a blown
+ * cap is recorded and surfaced for a human, never thrown.
  */
 export async function redeemCoupon(
   db: Db,
@@ -241,6 +263,17 @@ export async function redeemCoupon(
   });
   if (existing) return false;
 
+  // The atomic claim. `usageLimit IS NULL` means uncapped; otherwise the row is
+  // only incremented while it is still under its ceiling, and the affected-row
+  // count tells us whether this caller won.
+  const claimed = await db.$executeRaw`
+    UPDATE "Coupon"
+    SET "usageCount" = "usageCount" + 1
+    WHERE "id" = ${args.couponId}
+      AND ("usageLimit" IS NULL OR "usageCount" < "usageLimit")
+  `;
+  if (claimed !== 1) return false;
+
   await db.couponRedemption.create({
     data: {
       couponId: args.couponId,
@@ -248,10 +281,6 @@ export async function redeemCoupon(
       orderId: args.orderId,
       amount: args.amount,
     },
-  });
-  await db.coupon.update({
-    where: { id: args.couponId },
-    data: { usageCount: { increment: 1 } },
   });
   return true;
 }

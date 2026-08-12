@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { permanentRedirect } from "next/navigation";
 import { CollectionsPageClient } from "@/components/store/CollectionsPageClient";
 import { CollectionHero } from "@/components/store/CollectionHero";
 import { JsonLd } from "@/components/JsonLd";
@@ -17,21 +16,25 @@ export const metadata: Metadata = pageMetadata({
   path: "/collections",
 });
 
-interface CollectionsPageProps {
-  searchParams: Promise<{ collection?: string; tags?: string }>;
-}
+/**
+ * Static, refreshed every five minutes.
+ *
+ * This page used to read `searchParams` — which opts a route out of static
+ * rendering entirely — to pre-filter by `?tags=`. That was both a capacity
+ * problem (a measured 3.3s of Postgres round trips per visitor, and under load
+ * it returned nothing at all) and a bug: `CollectionsPageClient` seeds its own
+ * filters from `useSearchParams` and filters `initialProducts` client-side, so
+ * narrowing the server query as well meant clearing a filter could not bring
+ * the hidden products back — they had never been sent.
+ *
+ * Serving the full visible catalogue and letting the client filter it fixes
+ * both. The legacy `?collection=` facet redirect moved to `next.config.ts`,
+ * where it costs nothing per request.
+ */
+export const revalidate = 300;
 
-export default async function CollectionsPage({ searchParams }: CollectionsPageProps) {
-  const params = await searchParams;
-
-  // `?collection=` was the old facet URL. Collapse it into the real route
-  // rather than serving the same products at two addresses.
-  if (params.collection && params.collection !== "all") {
-    permanentRedirect(`/collections/${params.collection}`);
-  }
-
-  const tags = params.tags ? params.tags.split(",") : undefined;
-  const data = await getCollectionsData(undefined, tags);
+export default async function CollectionsPage() {
+  const data = await getCollectionsData();
 
   return (
     <div className="pt-[64px] sm:pt-[76px] bg-brand-ivory min-h-screen">
@@ -61,10 +64,10 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
           { label: "Collections" },
         ]}
       />
-      {/* `CollectionsPageClient` reads `useSearchParams` to seed its filters.
-          Both collection routes already await `searchParams`, so they render
-          dynamically and this boundary never falls back — it is here so the
-          build can't break if either route is ever made static. */}
+      {/* `CollectionsPageClient` reads `useSearchParams` to seed its filters,
+          which suspends during prerender. The boundary is what lets the rest of
+          this page be static HTML while the filter state resolves in the
+          browser. */}
       <Suspense fallback={null}>
         <CollectionsPageClient
           initialProducts={data.products}

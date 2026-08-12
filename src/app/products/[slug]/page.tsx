@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -49,7 +50,13 @@ interface ProductPageProps {
   params: Promise<{ slug: string }>;
 }
 
-async function getProductFromDb(slug: string) {
+/**
+ * Wrapped in React's `cache()` because this runs twice per render — once in
+ * `generateMetadata` and once in the page body. Next dedupes `fetch()` calls
+ * automatically but knows nothing about a Prisma call, so without this every
+ * product page issued the same four-table join to Postgres twice.
+ */
+const getProductFromDb = cache(async (slug: string) => {
   return prisma.product.findUnique({
     where: { slug, isVisible: true },
     include: {
@@ -59,6 +66,36 @@ async function getProductFromDb(slug: string) {
       collection: { select: { id: true, name: true, slug: true } },
     },
   });
+});
+
+/**
+ * Prerender every visible product at build time and refresh on a 5-minute
+ * window.
+ *
+ * Before this the PDP was `ƒ` — server-rendered per request — and a measured
+ * cold request took 2.5s of sequential Postgres round trips before a single
+ * byte reached the browser. It is the second-most-visited route on the site and
+ * the one a paid campaign lands on; it cannot be paying for a database render
+ * per visitor at launch traffic.
+ *
+ * `dynamicParams` stays at its default (`true`), so a product added after the
+ * build still renders on demand and is cached from then on. Admin edits do not
+ * wait out the window — `refreshStorefront()` in the admin product routes calls
+ * `revalidatePath("/products/[slug]", "page")`.
+ */
+export const revalidate = 300;
+
+export async function generateStaticParams() {
+  try {
+    const products = await prisma.product.findMany({
+      where: { isVisible: true },
+      select: { slug: true },
+    });
+    return products.map((p) => ({ slug: p.slug }));
+  } catch {
+    // No database reachable at build time — every page just renders on demand.
+    return [];
+  }
 }
 
 async function getRelatedFromDb(productId: string, collectionId: string | null) {
@@ -236,9 +273,10 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   try {
     product = await getProductFromDb(slug);
   } catch {
-    // DB unavailable — fall through to the POC catalogue below.
+    // DB unreachable — see the note in the page component. Only this branch
+    // may reach for the POC fixtures.
+    product = getPocProductBySlug(slug) ?? null;
   }
-  if (!product) product = getPocProductBySlug(slug) ?? null;
 
   // Unknown slug: the page itself will 404, so emit nothing rather than a
   // half-built card for a URL that doesn't exist.
@@ -264,6 +302,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
   let isActive = true;
   let fromPoc = false;
 
+  /**
+   * The POC fixtures are a degradation path for an unreachable database, and
+   * nothing else.
+   *
+   * They used to be reached whenever `getProductFromDb` returned null — but
+   * that query filters `isVisible: true`, so a product the admin had
+   * deliberately hidden also returned null. Six of the seeded slugs are
+   * identical to POC slugs (`tassel-work-lehenga`, `emerald-anarkali`, …), so
+   * unpublishing a real piece silently replaced it with a demo listing at the
+   * same URL — fake price, fake stock, still buyable. Hidden or deleted now
+   * means 404, which is what it always meant everywhere else.
+   */
   try {
     product = await getProductFromDb(slug);
     if (product) {
@@ -272,16 +322,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
       isActive = true;
     }
   } catch {
-    // fall through to POC
-  }
-
-  if (!product) {
     const poc = getPocProductBySlug(slug);
-    if (!poc) notFound();
-    product = poc;
-    related = getRelatedPocProducts(slug);
-    isActive = poc.isActive;
-    fromPoc = true;
+    if (poc) {
+      product = poc;
+      related = getRelatedPocProducts(slug);
+      isActive = poc.isActive;
+      fromPoc = true;
+    }
   }
 
   if (!product) notFound();

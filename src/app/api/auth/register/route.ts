@@ -34,6 +34,34 @@ export async function POST(req: NextRequest) {
   const strengthError = validatePasswordStrength(password);
   if (strengthError) return NextResponse.json({ error: strengthError }, { status: 400 });
 
+  /**
+   * Sending must never fail the registration.
+   *
+   * `issueVerificationEmail` throws when the mail provider rejects the send —
+   * and it will: while the sending domain is unverified, Resend runs in sandbox
+   * mode and 403s for every recipient except the account owner. Unhandled, that
+   * threw out of this handler as a 500 *after* the `User` row was already
+   * written, so the customer saw "couldn't create your account" and then could
+   * never register again: the row exists, so every retry lands in the branch
+   * above it. A permanent lockout on the sign-up form, on launch day.
+   *
+   * The sibling routes (`forgot-password`, `resend-verification`) already
+   * swallow this; registration was the one that did not.
+   */
+  async function sendVerification(): Promise<boolean> {
+    try {
+      await issueVerificationEmail(email);
+      return true;
+    } catch (err) {
+      console.error(`[register] verification email to ${email} failed:`, err);
+      return false;
+    }
+  }
+
+  const emailFailedMessage =
+    "Your account is ready, but we couldn't send the verification email just now. " +
+    "Use “Resend verification” in a moment, or contact us if it keeps failing.";
+
   const existing = await prisma.user.findUnique({ where: { email } });
 
   if (existing) {
@@ -49,10 +77,15 @@ export async function POST(req: NextRequest) {
     // whoever registered first may be the rightful owner, and letting a second
     // submission replace their password would be a takeover primitive.
     if (existing.passwordHash) {
-      await issueVerificationEmail(email);
+      const sent = await sendVerification();
       return NextResponse.json({
         ok: true,
-        message: "That email is already registered — we've re-sent the verification link.",
+        // Same wording as a brand-new registration on purpose: the previous
+        // copy ("that email is already registered") told an attacker walking a
+        // list exactly which addresses hold half-finished accounts.
+        message: sent
+          ? "Check your inbox to finish setting up your account."
+          : emailFailedMessage,
       });
     }
 
@@ -63,14 +96,20 @@ export async function POST(req: NextRequest) {
       where: { id: existing.id },
       data: { name, passwordHash: await hashPassword(password) },
     });
-    await issueVerificationEmail(email);
-    return NextResponse.json({ ok: true });
+    const sent = await sendVerification();
+    return NextResponse.json({
+      ok: true,
+      message: sent ? "Check your inbox to finish setting up your account." : emailFailedMessage,
+    });
   }
 
   await prisma.user.create({
     data: { name, email, passwordHash: await hashPassword(password) },
   });
-  await issueVerificationEmail(email);
+  const sent = await sendVerification();
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    message: sent ? "Check your inbox to finish setting up your account." : emailFailedMessage,
+  });
 }

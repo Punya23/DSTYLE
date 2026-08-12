@@ -64,27 +64,47 @@ export function HeroSection({
 }: HeroSectionProps) {
   const heroRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
-  const eyebrowRef = useRef<HTMLDivElement>(null);
-  const taglineRef = useRef<HTMLParagraphElement>(null);
-  const ctaRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const reducedMotion = useReducedMotion();
   const [activeSlide, setActiveSlide] = useState(0);
+  const [idleReached, setIdleReached] = useState(false);
 
-  // Intro reveal + scroll parallax on the whole media stack.
+  // Slides past the first are geometrically inside the viewport from the very
+  // first paint (they are only opacity-0), so Chrome treats them as in-view
+  // lazy images and fetches all three hero photographs in the same batch —
+  // frames 2 and 3 competing for the first connections with the LCP image, for
+  // pictures nobody sees for six seconds. Hold them out of the DOM until the
+  // browser goes idle (or the rotation actually needs them, below).
+  useEffect(() => {
+    if (typeof window.requestIdleCallback !== "function") {
+      // Safari only shipped requestIdleCallback in 17.4; on anything older a
+      // plain timer is enough, since all we need is "after the first paint".
+      const id = window.setTimeout(() => setIdleReached(true), 1500);
+      return () => window.clearTimeout(id);
+    }
+    const id = window.requestIdleCallback(() => setIdleReached(true), { timeout: 3000 });
+    return () => window.cancelIdleCallback(id);
+  }, []);
+
+  // A tap on the progress hairlines can outrun the idle callback, so the
+  // rotation advancing is itself a mount trigger — the target slide has to
+  // exist in the same commit for the crossfade effect to find its ref.
+  const secondarySlidesMounted = idleReached || activeSlide !== 0;
+
+  // Intro reveal + scroll parallax on the whole media stack. The eyebrow,
+  // tagline and CTAs are deliberately absent: they used to be server-rendered
+  // at opacity-0 with only this timeline to clear them, so the hero painted as
+  // a photograph with no headline and no buttons until the ~54KB
+  // gsap+ScrollTrigger chunk downloaded and hydrated — 2.5-5s on a 4G handset,
+  // on the highest-traffic page. They now reveal themselves from CSS (see the
+  // .hero-copy-reveal block below) and GSAP is left owning only what CSS
+  // cannot do: the per-character stagger and the scroll work.
   useEffect(() => {
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-
-      tl.fromTo(
-        eyebrowRef.current,
-        { opacity: 0, y: 12 },
-        { opacity: 1, y: 0, duration: 0.9 },
-        0.2
-      );
 
       const chars = headlineRef.current?.querySelectorAll(".char");
       if (chars && chars.length > 0) {
@@ -102,20 +122,6 @@ export function HeroSection({
           0.35
         );
       }
-
-      tl.fromTo(
-        taglineRef.current,
-        { opacity: 0, y: 16 },
-        { opacity: 1, y: 0, duration: 0.9 },
-        "-=0.5"
-      );
-
-      tl.fromTo(
-        ctaRef.current,
-        { opacity: 0, y: 16 },
-        { opacity: 1, y: 0, duration: 0.8 },
-        "-=0.55"
-      );
 
       tl.fromTo(
         cueRef.current,
@@ -203,6 +209,24 @@ export function HeroSection({
          on viewport height too, so landscape phones just track 100dvh. */
       className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-brand-ink md:h-[100dvh] md:flex-row [@media(min-width:768px)_and_(min-height:640px)]:min-h-[680px]"
     >
+      {/* The copy's from-state lives here, inline in the same HTML document as
+          the nodes it hides, so nothing — not a stylesheet, and certainly not
+          the GSAP chunk — can arrive late and leave the hero blank. The media
+          query is the reduced-motion path that matters: it needs no JS, so the
+          text is simply visible for those visitors even if the bundle never
+          lands (useReducedMotion only gates the GSAP enhancements). */}
+      <style>{`
+        @keyframes heroCopyReveal {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: none; }
+        }
+        .hero-copy-reveal {
+          animation: heroCopyReveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hero-copy-reveal { animation: none; }
+        }
+      `}</style>
       {/* Media — on mobile it fills the section and the copy is overlaid on
           top of it (stacking image *above* the copy pushed the primary CTA
           below the fold on a 375x667 phone, and every peer house overlays
@@ -221,26 +245,28 @@ export function HeroSection({
             whole stack is hidden from assistive tech rather than announcing
             three image descriptions back to back for one background. */}
         <div aria-hidden="true" className="absolute inset-0">
-          {slides.map((slide, i) => (
-            <div
-              key={slide.src}
-              ref={(el) => {
-                slideRefs.current[i] = el;
-              }}
-              className={`absolute inset-0 ${!reducedMotion ? "animate-hero-drift" : ""}`}
-              style={{ opacity: i === 0 ? 1 : 0 }}
-            >
-              <Image
-                src={slide.src}
-                alt={slide.alt}
-                fill
-                priority={i === 0}
-                sizes="(max-width: 767px) 100vw, 54vw"
-                className="object-cover"
-                style={{ objectPosition: slide.focalPoint ?? "center" }}
-              />
-            </div>
-          ))}
+          {slides.map((slide, i) =>
+            i > 0 && !secondarySlidesMounted ? null : (
+              <div
+                key={slide.src}
+                ref={(el) => {
+                  slideRefs.current[i] = el;
+                }}
+                className={`absolute inset-0 ${!reducedMotion ? "animate-hero-drift" : ""}`}
+                style={{ opacity: i === 0 ? 1 : 0 }}
+              >
+                <Image
+                  src={slide.src}
+                  alt={slide.alt}
+                  fill
+                  priority={i === 0}
+                  sizes="(max-width: 767px) 100vw, 54vw"
+                  className="object-cover"
+                  style={{ objectPosition: slide.focalPoint ?? "center" }}
+                />
+              </div>
+            )
+          )}
         </div>
 
         {/* Cinematic overlays. media-scrim is the desktop treatment only — on
@@ -298,8 +324,8 @@ export function HeroSection({
           {/* Eyebrow with gold hairline — framed on mobile, left-run on desktop
               where the column itself supplies the left edge. */}
           <div
-            ref={eyebrowRef}
-            className="hero-eyebrow mb-5 flex items-center justify-center gap-4 opacity-0 sm:gap-5 sm:mb-7 md:justify-start"
+            className="hero-copy-reveal hero-eyebrow mb-5 flex items-center justify-center gap-4 sm:gap-5 sm:mb-7 md:justify-start"
+            style={{ animationDelay: "0.1s" }}
           >
             <span className="hidden h-px w-10 gold-rule-solid opacity-70 sm:block lg:w-14" />
             <span className="micro-label text-[10px] text-brand-champagne">{subline}</span>
@@ -317,8 +343,8 @@ export function HeroSection({
           </h1>
 
           <p
-            ref={taglineRef}
-            className="hero-tagline mx-auto mb-8 max-w-lg font-sans text-[13px] leading-[1.7] text-white/75 opacity-0 sm:mb-10 sm:text-[14px] md:mx-0"
+            className="hero-copy-reveal hero-tagline mx-auto mb-8 max-w-lg font-sans text-[13px] leading-[1.7] text-white/75 sm:mb-10 sm:text-[14px] md:mx-0"
+            style={{ animationDelay: "0.3s" }}
           >
             {tagline}
           </p>
@@ -327,8 +353,8 @@ export function HeroSection({
               so the primary is the inverted (white-fill) button rather than
               ink-on-ink. */}
           <div
-            ref={ctaRef}
-            className="mx-auto flex w-full max-w-[340px] flex-col items-stretch justify-center gap-3 opacity-0 sm:max-w-none sm:flex-row sm:items-center sm:gap-4 md:mx-0 md:justify-start"
+            className="hero-copy-reveal mx-auto flex w-full max-w-[340px] flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:items-center sm:gap-4 md:mx-0 md:justify-start"
+            style={{ animationDelay: "0.45s" }}
           >
             <MagneticButton className="w-full sm:w-auto">
               <Link href="/collections" className="btn-invert w-full min-h-[52px] px-10 sm:w-auto">

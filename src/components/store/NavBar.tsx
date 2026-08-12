@@ -1,5 +1,5 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { cached, TTL } from "@/lib/cache";
 import { getStoreConfig } from "@/lib/settings";
 import type { StoreConfig } from "@/lib/pricing";
 import { COLLECTION_BANNERS } from "@/data/demo-assets";
@@ -12,24 +12,32 @@ import { NavBarClient, type NavCollection } from "./NavBarClient";
  *
  * This is a Server Component so the mega-menu is built from the real collection
  * taxonomy and the announcement bar from the real store configuration, rather
- * than a hard-coded list that silently drifts from the database. Both reads are
- * cached (Redis, ten-minute and five-minute TTLs) and both degrade to a working
- * nav if the database is unreachable.
+ * than a hard-coded list that silently drifts from the database. Both reads
+ * degrade to a working nav if the database is unreachable.
  */
 
 /**
- * Deliberately the same query and cache key as `GET /api/collections`, so the
- * nav shares that entry instead of adding a second read of the same rows.
+ * Reads Postgres directly rather than going through the Redis cache in
+ * `src/lib/cache.ts`, even though `GET /api/collections` caches the identical
+ * query.
+ *
+ * This component is rendered by the ROOT LAYOUT, and the Upstash client fetches
+ * with `cache: "no-store"`, which opts the rendering route out of static
+ * generation. Going through Redis here therefore made every page on the site
+ * dynamic the moment the Upstash credentials were set — verified by building
+ * with them present. The full explanation is in the header of `src/lib/cache.ts`.
+ *
+ * Nothing is lost: the pages that render this nav are prerendered on a
+ * revalidation window, so the query runs once per window instead of once per
+ * visitor, and `cache()` dedupes it within a render.
  */
-async function getNavCollections(): Promise<NavCollection[]> {
+const getNavCollections = cache(async (): Promise<NavCollection[]> => {
   try {
-    const rows = await cached("collections", "visible", TTL.collections, () =>
-      prisma.collection.findMany({
-        where: { isVisible: true },
-        orderBy: { sortOrder: "asc" },
-        include: { _count: { select: { products: true } } },
-      })
-    );
+    const rows = await prisma.collection.findMany({
+      where: { isVisible: true },
+      orderBy: { sortOrder: "asc" },
+      include: { _count: { select: { products: true } } },
+    });
 
     return rows.map((c) => ({
       name: c.name,
@@ -42,7 +50,7 @@ async function getNavCollections(): Promise<NavCollection[]> {
     // No database — the nav still renders, just without the mega-menu.
     return [];
   }
-}
+});
 
 /**
  * Offers, stated from configuration only.

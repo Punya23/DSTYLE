@@ -12,6 +12,15 @@ function isAdmin(role: string | undefined) {
 }
 
 export async function GET() {
+  // `src/proxy.ts` only matches /checkout, /account and /admin — NOT /api/admin —
+  // so there is no second gate behind this. Without the check below an anonymous
+  // request returned the whole catalogue: hidden and unreleased pieces, cost-side
+  // fields, and live stock for every SKU.
+  const session = await auth();
+  if (!isAdmin(session?.user?.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   try {
     const products = await prisma.product.findMany({
       include: {
@@ -90,6 +99,9 @@ export async function POST(req: NextRequest) {
     // knows nothing about it.
     revalidatePath("/");
     revalidatePath("/collections");
+    // The new piece belongs in the related-products rail of everything already
+    // prerendered in its collection.
+    revalidatePath("/products/[slug]", "page");
     await invalidate("products");
     await invalidate("collections");
 
