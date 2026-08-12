@@ -11,8 +11,15 @@ import { prisma } from "@/lib/prisma";
 
 interface CollectionPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tags?: string }>;
 }
+
+/**
+ * Static per collection, refreshed every five minutes — see the note in
+ * `app/collections/page.tsx` for why the `?tags=` server-side narrowing was
+ * removed. `generateStaticParams` below was already here but had no effect
+ * while the route read `searchParams`.
+ */
+export const revalidate = 300;
 
 /**
  * Pre-render every visible collection. The list is small and changes rarely,
@@ -54,15 +61,13 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
   });
 }
 
-export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
+export default async function CollectionPage({ params }: CollectionPageProps) {
   const { slug } = await params;
-  const { tags: tagsParam } = await searchParams;
 
   const collection = await getCollectionBySlug(slug);
   if (!collection) notFound();
 
-  const tags = tagsParam ? tagsParam.split(",") : undefined;
-  const data = await getCollectionsData(slug, tags);
+  const data = await getCollectionsData(slug);
   const description = describe(collection.name, collection.description);
 
   return (

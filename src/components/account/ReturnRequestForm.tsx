@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -111,8 +112,13 @@ export function ReturnRequestForm({
                 />
                 <div className="relative h-20 w-16 shrink-0 overflow-hidden bg-brand-ivory-deep">
                   {item.image && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.image} alt={item.productName} className="h-full w-full object-cover" />
+                    <Image
+                      src={item.image}
+                      alt={item.productName}
+                      fill
+                      className="object-cover"
+                      sizes="64px"
+                    />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">

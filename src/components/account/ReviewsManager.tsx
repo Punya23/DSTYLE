@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/account/AccountSection";
@@ -29,8 +30,13 @@ function Thumb({ product }: { product: ReviewableProduct }) {
       className="relative h-20 w-16 shrink-0 overflow-hidden bg-brand-ivory-deep"
     >
       {product.image && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+        <Image
+          src={product.image}
+          alt={product.name}
+          fill
+          className="object-cover"
+          sizes="64px"
+        />
       )}
     </Link>
   );

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildCartQuote } from "@/lib/quote";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * Price the cart. The client holds nothing but SKU ids and quantities; every
@@ -24,6 +25,13 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   const session = await auth();
+
+  // Unauthenticated and DB-touching: one call runs a store-settings read, a
+  // SKU lookup over up to 100 ids, and the whole coupon engine. It was the only
+  // route in the app without a ceiling. Scoped by user id where there is one,
+  // so a shared NAT doesn't throttle everyone behind it.
+  const limited = await enforceRateLimit(req, "read", session?.user?.id);
+  if (limited) return limited;
 
   let body;
   try {

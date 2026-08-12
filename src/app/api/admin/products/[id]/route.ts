@@ -9,6 +9,11 @@ import { invalidate } from "@/lib/cache";
 async function refreshStorefront() {
   revalidatePath("/");
   revalidatePath("/collections");
+  // Product pages are prerendered on a 5-minute window (see `revalidate` in
+  // `app/products/[slug]/page.tsx`). Passing "page" clears every slug under the
+  // dynamic segment, which is what an edit to any one product needs — the piece
+  // itself, plus the related-products rail on its collection siblings.
+  revalidatePath("/products/[slug]", "page");
   // `revalidatePath` only clears this deployment's rendered pages. The shared
   // Redis copy of /api/products has to be dropped separately or the client-side
   // catalogue keeps serving the pre-edit rows for the rest of its TTL.
@@ -24,6 +29,13 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Same omission as the collection GET in the sibling route — /api/admin/* is
+  // outside the proxy matcher, so this is the only gate there is.
+  const session = await auth();
+  if (!isAdmin(session?.user?.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   const { id } = await params;
   try {
     const product = await prisma.product.findUnique({

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { isVideoUrl } from "@/lib/media";
+import { isVideoUrl, videoUrl, videoPosterUrl } from "@/lib/media";
 import { cn, formatPrice } from "@/lib/utils";
 import { discountPercent } from "@/lib/pricing";
 import { useAuthModal } from "@/store/auth-modal";
@@ -124,11 +124,16 @@ export function ProductCard({
         {primaryImage ? (
           primaryIsVideo ? (
             <video
-              src={primaryImage.url}
+              src={videoUrl(primaryImage.url)}
+              poster={videoPosterUrl(primaryImage.url)}
               autoPlay
               muted
               loop
               playsInline
+              // A grid of autoplaying reels is the worst case for a mobile
+              // connection. The poster paints immediately; the clip itself only
+              // starts fetching once the browser decides the card is worth it.
+              preload="none"
               className="absolute inset-0 h-full w-full object-cover object-center"
             />
           ) : (

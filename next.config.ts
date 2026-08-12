@@ -65,6 +65,28 @@ const nextConfig: NextConfig = {
   // Don't advertise the framework version to scanners.
   poweredByHeader: false,
   images: {
+    /**
+     * Every image is transformed and served by Cloudinary, not by Next's
+     * `/_next/image` optimizer. See `src/lib/cloudinary-loader.ts` for the
+     * mapping and `scripts/cloudinary-migrate.mjs` for the upload side.
+     *
+     * The point is that no image byte ever passes through the app server: on a
+     * launch-day spike the origin serves HTML and nothing else, and image
+     * delivery scales on a CDN that is already built for it. It also removes
+     * the per-transformation cost of Vercel's optimizer.
+     *
+     * Reverting is deleting these two lines — `ProductImage.url` rows are still
+     * plain site-relative paths, so the built-in optimizer picks them straight
+     * back up.
+     */
+    loader: "custom",
+    loaderFile: "./src/lib/cloudinary-loader.ts",
+    /**
+     * Unused while `loader` is "custom" (Next does no optimization of its own),
+     * kept so that reverting the two lines above restores the previous
+     * behaviour exactly rather than silently dropping AVIF and the host
+     * allowlist.
+     */
     remotePatterns: [
       {
         protocol: "https",
@@ -85,6 +107,26 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
+  },
+  /**
+   * `?collection=` was the old facet URL for the browser at `/collections`.
+   * It used to be collapsed inside the page component, which meant reading
+   * `searchParams` — and that alone forced the whole route to render per
+   * request. Handled here it costs nothing: the platform answers with a 308
+   * before any of the app runs.
+   *
+   * `collection=all` is deliberately not matched; that is the unfiltered
+   * browser and already lives at `/collections`.
+   */
+  async redirects() {
+    return [
+      {
+        source: "/collections",
+        has: [{ type: "query", key: "collection", value: "(?<col>(?!all$)[^&]+)" }],
+        destination: "/collections/:col",
+        permanent: true,
+      },
+    ];
   },
 };
 

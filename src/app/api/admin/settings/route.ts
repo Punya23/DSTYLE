@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getStoreConfig, updateStoreConfig } from "@/lib/settings";
@@ -35,7 +36,18 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const patch = schema.parse(await req.json());
-    return NextResponse.json({ settings: await updateStoreConfig(patch) });
+    const settings = await updateStoreConfig(patch);
+
+    // These rules are baked into prerendered HTML — the announcement bar in the
+    // root layout states the free-shipping threshold and the COD fee, and the
+    // product page renders GST-inclusive prices. Without this, changing the tax
+    // or shipping rules left the storefront quoting the old ones until each
+    // page's revalidation window expired.
+    revalidatePath("/", "layout");
+    revalidatePath("/products/[slug]", "page");
+    revalidatePath("/collections/[slug]", "page");
+
+    return NextResponse.json({ settings });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(

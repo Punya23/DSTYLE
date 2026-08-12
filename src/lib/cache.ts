@@ -2,15 +2,35 @@ import { redis } from "@/lib/redis";
 
 /**
  * Read-through cache over Redis for data that is read constantly and written
- * rarely: the collection list, catalogue pages, store settings.
+ * rarely: the collection list and catalogue pages.
  *
  * This sits *below* Next.js's own caching rather than replacing it. Next's cache
- * is per-deployment and per-region; this one is shared, so a settings change
+ * is per-deployment and per-region; this one is shared, so a catalogue change
  * made in the admin panel can be invalidated everywhere at once instead of
  * waiting out a revalidation window in each region.
  *
  * With no Redis configured every call degrades to invoking `fn` directly, so
  * nothing here is load-bearing for correctness.
+ *
+ * ---------------------------------------------------------------------------
+ * ROUTE HANDLERS ONLY. Do not call this from a Server Component.
+ *
+ * `@upstash/redis` issues its REST call with `cache: "no-store"`, and a
+ * `no-store` fetch during prerender opts that route out of static rendering.
+ * Because the nav and the store config are read from the ROOT LAYOUT, calling
+ * this from a Server Component made *every page on the site* dynamic — not
+ * gradually, but the instant `UPSTASH_REDIS_REST_URL` was set. Verified by
+ * building with the variables present: `/`, `/about`, `/faq`, `/collections`
+ * and `/products/[slug]` all flipped from prerendered to `ƒ`.
+ *
+ * That is the worst possible failure shape, because provisioning Upstash is
+ * itself a launch requirement — the cache you added to survive traffic would
+ * have silently deleted the static rendering that actually does it.
+ *
+ * Server Components should call Prisma directly and let Next's full-route cache
+ * (`export const revalidate`) do the caching; a page rendered once per
+ * revalidation window has nothing left for Redis to save.
+ * ---------------------------------------------------------------------------
  */
 
 const PREFIX = "dstyle:cache";
@@ -21,12 +41,10 @@ export const TTL = {
   collections: 600,
   /** Catalogue pages change whenever the admin edits a product. */
   products: 120,
-  /** Store settings: read on nearly every request, written by one person. */
-  settings: 300,
 } as const;
 
 /** Namespaces, so a targeted invalidation doesn't have to know every key. */
-export type CacheNamespace = "collections" | "products" | "settings";
+export type CacheNamespace = "collections" | "products";
 
 function fullKey(namespace: CacheNamespace, key: string): string {
   return `${PREFIX}:${namespace}:${key}`;

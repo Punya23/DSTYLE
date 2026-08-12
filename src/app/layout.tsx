@@ -102,6 +102,14 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable}`}
       style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}
     >
+      <head>
+        {/* Every image and reel is now served cross-origin from Cloudinary, so
+            the LCP image would otherwise pay a cold DNS + TLS handshake before
+            its first byte. Opening the connection alongside the HTML removes
+            that from the critical path. */}
+        <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+      </head>
       <body className="antialiased bg-brand-ivory text-brand-ink w-full overflow-x-clip">
         {/* Site-wide identity graph. Page-level schemas reference these by @id
             rather than repeating the publisher on every route. */}

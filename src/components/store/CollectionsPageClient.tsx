@@ -8,13 +8,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ProductCard } from "./ProductCard";
 import {
+  DEFAULT_SORT,
   EMPTY_FILTERS,
   FilterDrawer,
   SORT_OPTIONS,
@@ -49,18 +50,39 @@ export function CollectionsPageClient({
 }: CollectionsPageClientProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const reduced = useReducedMotion();
 
   // The URL seeds the filters exactly once, on mount, so a shared or reloaded
   // link opens pre-filtered. From then on React state is the source of truth
   // for rendering and the URL is written back to (debounced) — that keeps every
   // facet tap instant instead of waiting on an RSC round-trip.
-  const [filters, setFilters] = useState<FilterState>(() =>
-    filtersFromQuery(searchParams.toString())
-  );
-  const [sort, setSort] = useState<string>(() => sortFromQuery(searchParams.toString()));
+  //
+  // Seeded from `window.location.search` in an effect rather than from
+  // `useSearchParams()` during render, and that distinction is load-bearing:
+  // `useSearchParams` suspends while a route is being prerendered, so the
+  // enclosing Suspense boundary rendered its `null` fallback into the static
+  // HTML — every collection page shipped an EMPTY product grid, filled in only
+  // after hydration. Search engines saw no products and the first paint had
+  // nothing in it. Reading the query string after mount costs one extra render
+  // for a visitor who arrived on a filtered link, and gets the whole catalogue
+  // into the prerendered document for everyone else.
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [sort, setSort] = useState<string>(DEFAULT_SORT);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Mount only: after this the state, not the URL, is the source of truth. The
+  // lint rule below guards against effects that derive state from render-time
+  // values (props/state) — this derives it from `window.location`, which does
+  // not exist during render, so there is nowhere else to read it without
+  // breaking hydration.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const query = window.location.search.replace(/^\?/, "");
+    if (!query) return;
+    setFilters(filtersFromQuery(query));
+    setSort(sortFromQuery(query));
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const gridRef = useRef<HTMLDivElement>(null);
   const syncTimer = useRef<number | null>(null);
